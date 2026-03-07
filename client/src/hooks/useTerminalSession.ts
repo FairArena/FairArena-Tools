@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionState } from '../types/index.js'
 
+// ─── Environment config ───────────────────────────────────────────────────────
+// Set VITE_API_URL in .env when the backend lives on a different host (Vercel + VPS).
+// If left empty the SPA proxies through Vite dev-server (local dev default).
+export const API_BASE = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '')
+
+const WS_BASE = API_BASE
+  ? API_BASE.replace(/^https?/, (m) => (m === 'https' ? 'wss' : 'ws'))
+  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+const WS_URL = `${WS_BASE}/terminal`
+
 type WsServerMsg =
   | { type: 'ready'; sessionId: string; expiresIn: number }
   | { type: 'stdout'; data: string }
@@ -28,8 +38,6 @@ export interface TerminalSessionHandle {
   kill: () => void
 }
 
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/terminal`
-
 export function useTerminalSession(opts: UseTerminalSessionOpts): TerminalSessionHandle {
   const [state, setState] = useState<SessionState>('idle')
   const [statusMessage, setStatusMessage] = useState('')
@@ -55,7 +63,7 @@ export function useTerminalSession(opts: UseTerminalSessionOpts): TerminalSessio
     setExpiresIn(null)
   }, [sendJson])
 
-  const start = useCallback((osId: string, cols: number, rows: number) => {
+  const start = useCallback(async (osId: string, cols: number, rows: number) => {
     // Close any existing connection
     if (wsRef.current) {
       wsRef.current.close()
@@ -63,6 +71,26 @@ export function useTerminalSession(opts: UseTerminalSessionOpts): TerminalSessio
     }
 
     setState('connecting')
+    setStatusMessage('Checking server…')
+
+    // Pre-flight capacity check — avoids a misleading "connection failed" error
+    // when the real cause is overload or session limit.
+    try {
+      const r = await fetch(`${API_BASE}/api/server-stats`, {
+        signal: AbortSignal.timeout(3_000),
+      })
+      if (r.ok) {
+        const ss = await r.json() as { overloaded?: boolean }
+        if (ss.overloaded) {
+          setState('error')
+          const msg = 'Server is at capacity — no new sessions available right now. Please try again in a few minutes.'
+          setStatusMessage(msg)
+          optsRef.current.onError(msg)
+          return
+        }
+      }
+    } catch { /* stats endpoint unreachable — fall through and let WS fail naturally */ }
+
     setStatusMessage('Connecting…')
 
     const ws = new WebSocket(WS_URL)
@@ -125,8 +153,9 @@ export function useTerminalSession(opts: UseTerminalSessionOpts): TerminalSessio
 
     ws.onerror = () => {
       setState('error')
-      setStatusMessage('WebSocket connection failed. Is the server running?')
-      optsRef.current.onError('WebSocket connection failed.')
+      const msg = 'Connection failed — the server may be temporarily unavailable or still starting up.'
+      setStatusMessage(msg)
+      optsRef.current.onError(msg)
     }
   }, [state])
 

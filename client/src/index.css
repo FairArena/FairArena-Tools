@@ -25,9 +25,11 @@
 }
 
 /* ── Xterm overrides ────────────────────────────────────────────────────────── */
-.xterm { padding: 0 !important; height: 100% !important; }
-.xterm-viewport { overflow-y: auto !important; }
-.xterm-screen canvas { display: block; }
+/* Critical: width 100% + min-width 0 prevents the canvas from expanding the flex column */
+.xterm { padding: 0 !important; height: 100% !important; width: 100% !important; min-width: 0 !important; overflow: hidden !important; }
+.xterm-viewport { overflow-y: auto !important; width: 100% !important; }
+.xterm-screen { width: 100% !important; max-width: 100% !important; overflow: hidden !important; }
+.xterm-screen canvas { display: block; max-width: 100%; }
 
 /* ── Utilities ──────────────────────────────────────────────────────────────── */
 @layer utilities {
@@ -38,4 +40,17 @@
   }
   .border-subtle { @apply border border-slate-700/60; }
   .text-muted { @apply text-slate-400; }
+  .animate-fade-in { animation: fadeIn 0.2s ease-out; }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+/* ── JSON syntax highlight ──────────────────────────────────────────────────── */
+.json-key  { color: #93c5fd; }  /* blue-300  */
+.json-str  { color: #86efac; }  /* green-300 */
+.json-num  { color: #fda4af; }  /* rose-300  */
+.json-bool { color: #c4b5fd; }  /* violet-300 */
+.json-null { color: #94a3b8; }  /* slate-400  */

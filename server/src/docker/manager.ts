@@ -17,21 +17,37 @@ export type TerminalSession = {
   sessionId: string
   osId: string
   containerName: string
+  ip: string
   pty: PtyProcess | null
   startedAt: number
-  timeout: NodeJS.Timeout
+  ttlTimeout: NodeJS.Timeout
+  idleTimeout: NodeJS.Timeout
+  warningTimeout: NodeJS.Timeout | null
   emitter: EventEmitter
 }
 
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+// Hard global cap on concurrent containers — default 3 on a 1 vCPU / 2 GB host
+const MAX_SESSIONS       = Math.max(1, Number(process.env.MAX_SESSIONS       ?? 3))
+// Max containers a single IP may hold at once — default 1 per IP
+const MAX_PER_IP         = Math.max(1, Number(process.env.MAX_SESSIONS_PER_IP ?? 1))
+// Hard wall-clock session lifetime (default 15 min)
+const SESSION_TTL_MS     = Math.max(60_000, Number(process.env.SESSION_TTL_MS  ?? 15 * 60_000))
+// Kill session after this many ms of stdin silence (default 5 min)
+const IDLE_TTL_MS        = Math.max(30_000, Number(process.env.IDLE_TTL_MS     ?? 5 * 60_000))
+// How long before TTL expiry to send a warning (default 2 min)
+const WARNING_BEFORE_MS  = Math.min(SESSION_TTL_MS - 10_000, 2 * 60_000)
+
 // ─── Session registry ─────────────────────────────────────────────────────────
 
-const MAX_SESSIONS = 20
-const SESSION_TTL_MS = 30 * 60 * 1000 // 30 minutes
+const sessions      = new Map<string, TerminalSession>()
+const sessionsByIp  = new Map<string, Set<string>>()  // ip → set of sessionIds
 
-const sessions = new Map<string, TerminalSession>()
+export function sessionCount(): number { return sessions.size }
 
-export function sessionCount(): number {
-  return sessions.size
+export function getSessionCountForIp(ip: string): number {
+  return sessionsByIp.get(ip)?.size ?? 0
 }
 
 // ─── Docker helpers ───────────────────────────────────────────────────────────
@@ -39,20 +55,56 @@ export function sessionCount(): number {
 /** Silently kill + remove a container by name */
 function destroyContainer(name: string): void {
   try {
-    execSync(`docker rm -f ${name}`, { stdio: 'ignore' })
-  } catch {
-    // best-effort
-  }
+    execSync(`docker rm -f ${name}`, { stdio: 'ignore', timeout: 10_000 })
+  } catch { /* best-effort */ }
 }
 
 /** Check whether Docker daemon is reachable */
 export function isDockerAvailable(): boolean {
   try {
-    execSync('docker info', { stdio: 'ignore', timeout: 5000 })
+    execSync('docker info', { stdio: 'ignore', timeout: 5_000 })
     return true
   } catch {
     return false
   }
+}
+
+/**
+ * On startup, remove any fairarena-* containers left over from a previous
+ * crash so we don't accumulate ghost containers.
+ */
+export function cleanupOrphanContainers(): void {
+  try {
+    const raw = execSync(
+      'docker ps -a --filter "name=fairarena-" --format "{{.Names}}"',
+      { encoding: 'utf8', timeout: 10_000 },
+    ).trim()
+    if (!raw) return
+    for (const name of raw.split('\n').map((n) => n.trim()).filter(Boolean)) {
+      destroyContainer(name)
+      console.log(`[manager] removed orphan container: ${name}`)
+    }
+  } catch { /* docker might not be available */ }
+}
+
+/**
+ * Destroy every live session – used during graceful shutdown.
+ */
+export function destroyAllSessions(): void {
+  for (const id of [...sessions.keys()]) {
+    destroySession(id)
+  }
+}
+
+// ─── idle / expiry timers ─────────────────────────────────────────────────────
+
+function makeIdleTimeout(sessionId: string): NodeJS.Timeout {
+  return setTimeout(() => {
+    const s = sessions.get(sessionId)
+    if (!s) return
+    s.emitter.emit('data', '\r\n\x1b[33m[FairArena] Session closed due to inactivity.\x1b[0m\r\n')
+    destroySession(sessionId)
+  }, IDLE_TTL_MS)
 }
 
 // ─── Session lifecycle ────────────────────────────────────────────────────────
@@ -60,38 +112,71 @@ export function isDockerAvailable(): boolean {
 export async function createSession(
   sessionId: string,
   osId: string,
+  ip: string,
 ): Promise<TerminalSession> {
+
+  // ── Global cap ────────────────────────────────────────────────────────────
   if (sessions.size >= MAX_SESSIONS) {
     throw new Error('Server is at capacity. Please try again in a few minutes.')
   }
 
-  const osCfg = getOsImage(osId)
-  if (!osCfg) {
-    throw new Error(`Unknown OS: ${osId}`)
+  // ── Per-IP cap ────────────────────────────────────────────────────────────
+  const ipSessions = sessionsByIp.get(ip) ?? new Set<string>()
+  if (ipSessions.size >= MAX_PER_IP) {
+    throw new Error(
+      `You already have ${MAX_PER_IP} active session(s). Close an existing terminal to start a new one.`,
+    )
   }
 
-  const containerName = `fairarena-${sessionId}`
+  const osCfg = getOsImage(osId)
+  if (!osCfg) throw new Error(`Unknown OS: ${osId}`)
 
-  // TTY auto-kill timeout
-  const timeout = setTimeout(() => {
+  const containerName = `fairarena-${sessionId}`
+  const emitter       = new EventEmitter()
+  emitter.setMaxListeners(20)
+
+  // Hard TTL – always fires
+  const ttlTimeout = setTimeout(() => {
+    const s = sessions.get(sessionId)
+    if (!s) return
+    s.emitter.emit('data', '\r\n\x1b[31m[FairArena] Maximum session time reached. Goodbye.\x1b[0m\r\n')
     destroySession(sessionId)
   }, SESSION_TTL_MS)
 
-  const emitter = new EventEmitter()
+  // Expiry warning
+  const warningTimeout =
+    WARNING_BEFORE_MS > 0
+      ? setTimeout(() => {
+          const s = sessions.get(sessionId)
+          if (!s) return
+          const minsLeft = Math.round(WARNING_BEFORE_MS / 60_000)
+          s.emitter.emit(
+            'data',
+            `\r\n\x1b[33m[FairArena] ⚠  Session will expire in ${minsLeft} minute(s).\x1b[0m\r\n`,
+          )
+          s.emitter.emit('expiry-warning', { remainingMs: WARNING_BEFORE_MS })
+        }, SESSION_TTL_MS - WARNING_BEFORE_MS)
+      : null
+
+  const idleTimeout = makeIdleTimeout(sessionId)
 
   const session: TerminalSession = {
     sessionId,
     osId,
     containerName,
+    ip,
     pty: null,
     startedAt: Date.now(),
-    timeout,
+    ttlTimeout,
+    idleTimeout,
+    warningTimeout,
     emitter,
   }
 
   sessions.set(sessionId, session)
+  ipSessions.add(sessionId)
+  sessionsByIp.set(ip, ipSessions)
 
-  // Spawn PTY asynchronously
   try {
     const pty = await spawnDockerPty(containerName, osCfg.image, osCfg.shell)
 
@@ -120,16 +205,32 @@ export function destroySession(sessionId: string): void {
   const session = sessions.get(sessionId)
   if (!session) return
 
-  clearTimeout(session.timeout)
+  clearTimeout(session.ttlTimeout)
+  clearTimeout(session.idleTimeout)
+  if (session.warningTimeout) clearTimeout(session.warningTimeout)
+
   session.pty?.kill()
   destroyContainer(session.containerName)
   session.emitter.removeAllListeners()
   sessions.delete(sessionId)
+
+  // Remove from per-IP registry
+  const ipSet = sessionsByIp.get(session.ip)
+  if (ipSet) {
+    ipSet.delete(sessionId)
+    if (ipSet.size === 0) sessionsByIp.delete(session.ip)
+  }
 }
 
 export function writeToSession(sessionId: string, data: string): void {
   const session = sessions.get(sessionId)
-  session?.pty?.write(data)
+  if (!session) return
+
+  // Reset idle timer on every stdin event
+  clearTimeout(session.idleTimeout)
+  session.idleTimeout = makeIdleTimeout(sessionId)
+
+  session.pty?.write(data)
 }
 
 export function resizeSession(sessionId: string, cols: number, rows: number): void {
@@ -150,48 +251,75 @@ async function spawnDockerPty(
   image: string,
   shell: string,
 ): Promise<PtyProcess> {
-  // Dynamic import of node-pty (native module)
   const ptyModule = await import('node-pty')
-  const nodePty = ptyModule.default ?? ptyModule
+  const nodePty   = ptyModule.default ?? ptyModule
 
   const isWindows = os.platform() === 'win32'
 
-  /** Docker run flags for a hardened sandbox */
+  /**
+   * Hardened sandbox flags:
+   *  - drop ALL Linux capabilities, no new privileges (cannot escape to root)
+   *  - memory, CPU, PID, and ulimit caps (cannot starve the host)
+   *  - read-only root FS with a small rw tmpfs for /tmp only
+   *  - external-only DNS so containers cannot resolve private RFC-1918 names
+   *  - no process.env leakage — only the bare minimum env is passed in
+   */
   const dockerArgs = [
     'run',
     '--rm',
     '-it',
     `--name=${containerName}`,
+
+    // Resource limits
     '--memory=256m',
-    '--memory-swap=256m',
+    '--memory-swap=256m',       // no extra swap on top of the 256 m
     '--cpus=0.5',
     '--pids-limit=64',
+    '--ulimit', 'nproc=64:64',
+    '--ulimit', 'nofile=256:256',
+    '--ulimit', 'fsize=20971520:20971520', // 20 MB max file write
+    '--stop-timeout=5',
+
+    // Privilege hardening
     '--cap-drop=ALL',
-    '--cap-add=NET_BIND_SERVICE',
     '--security-opt=no-new-privileges:true',
+    '--read-only',
+
+    // Writable scratch space only
+    '--tmpfs=/tmp:rw,nosuid,nodev,exec,size=64m',
+    '--tmpfs=/run:rw,nosuid,nodev,exec,size=8m',
+
+    // Network isolation: external DNS only, no internal resolution
     '--network=bridge',
-    '--tmpfs=/tmp:rw,nosuid,nodev,size=64m',
-    '-e',
-    'TERM=xterm-256color',
-    '-e',
-    'HOME=/root',
-    '-e',
-    'PS1=\\[\\033[01;32m\\]\\u@fairarena\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
+    '--dns=1.1.1.1',
+    '--dns=8.8.8.8',
+    '--dns-opt=timeout:2',
+    '--dns-opt=attempts:2',
+
+    // Minimal, clean env — never forward process.env
+    '-e', 'TERM=xterm-256color',
+    '-e', 'LANG=C.UTF-8',
+    '-e', 'LC_ALL=C.UTF-8',
+    '-e', 'PS1=\\[\\033[01;32m\\]\\u@fairarena\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
+
     image,
     shell,
   ]
 
   const spawnFile = isWindows ? 'docker.exe' : 'docker'
 
+  // Only pass the minimum env that docker CLI itself needs; strip everything else
+  const hostEnv: Record<string, string> = { PATH: process.env.PATH ?? '/usr/bin:/bin' }
+  if (isWindows && process.env.SYSTEMROOT) hostEnv.SYSTEMROOT = process.env.SYSTEMROOT
+
   const ptyProcess = nodePty.spawn(spawnFile, dockerArgs, {
     name: 'xterm-256color',
     cols: 120,
     rows: 30,
-    cwd: process.cwd(),
-    env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
+    cwd: os.tmpdir(),   // not the server's working directory
+    env: hostEnv,
   })
 
-  // Adapter that matches our PtyProcess interface
   const dataHandlers: Array<(data: string) => void> = []
   const exitHandlers: Array<(info: { exitCode: number }) => void> = []
 
@@ -199,16 +327,10 @@ async function spawnDockerPty(
   ptyProcess.onExit((info) => exitHandlers.forEach((h) => h(info)))
 
   return {
-    write: (data) => ptyProcess.write(data),
-    resize: (cols, rows) => ptyProcess.resize(cols, rows),
-    kill: () => {
-      try {
-        ptyProcess.kill()
-      } catch {
-        // already dead
-      }
-    },
-    onData: (cb) => dataHandlers.push(cb),
-    onExit: (cb) => exitHandlers.push(cb),
+    write:   (data)       => ptyProcess.write(data),
+    resize:  (cols, rows) => ptyProcess.resize(cols, rows),
+    kill:    ()           => { try { ptyProcess.kill() } catch { /* already dead */ } },
+    onData:  (cb)         => dataHandlers.push(cb),
+    onExit:  (cb)         => exitHandlers.push(cb),
   }
 }

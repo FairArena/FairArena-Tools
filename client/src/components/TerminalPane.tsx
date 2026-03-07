@@ -4,10 +4,10 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
-import { AlertTriangle, Clock, Copy, PlayCircle, Search, Square, RotateCcw } from 'lucide-react'
-import { useTerminalSession } from '../hooks/useTerminalSession.js'
+import { AlertTriangle, Clock, Copy, ExternalLink, PlayCircle, Search, Square, RotateCcw, Cpu, MemoryStick } from 'lucide-react'
+import { useTerminalSession, API_BASE } from '../hooks/useTerminalSession.js'
 import { OSSelector } from './OSSelector.js'
-import type { OsImage } from '../types/index.js'
+import type { OsImage, ServerStats } from '../types/index.js'
 
 const XTERM_THEME = {
   background:  '#0d1117',
@@ -50,8 +50,10 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [copyFeedback, setCopyFeedback] = useState(false)
+  const [stats, setStats] = useState<ServerStats | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const termWrapRef  = useRef<HTMLDivElement>(null)  // observed by ResizeObserver
   const xtermRef    = useRef<XTerm | null>(null)
   const fitRef      = useRef<FitAddon | null>(null)
   const searchRef   = useRef<SearchAddon | null>(null)
@@ -76,6 +78,15 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
   }, [])
 
   const session = useTerminalSession({ onData: handleData, onReady: handleReady, onError: handleError, onExit: handleExit })
+
+  // ── Poll server resource stats (terminal-side only) ────────────────────────
+  useEffect(() => {
+    const poll = () =>
+      fetch(API_BASE + '/api/server-stats').then((r) => r.json()).then(setStats).catch(() => {})
+    poll()
+    const id = setInterval(poll, 15_000)
+    return () => clearInterval(id)
+  }, [])
 
   // ── Init xterm ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -127,18 +138,28 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
     term.write('\r\n  \x1b[1mWelcome to FairArena Online Terminal\x1b[0m  ·  \x1b[2mSecure Docker Sandbox\x1b[0m\r\n')
     term.write('  \x1b[2mSelect an OS above and press \x1b[0m\x1b[32mStart Session\x1b[0m\x1b[2m to begin.\x1b[0m\r\n\r\n')
 
-    // Resize observer
+    // Resize observer — observe the wrapper div, NOT the xterm canvas.
+    // Observing containerRef itself causes a feedback loop where fit() changes
+    // the canvas size, which re-triggers the observer, endlessly growing the terminal.
+    const target = termWrapRef.current ?? containerRef.current!
+    let rafId = 0
     const ro = new ResizeObserver(() => {
-      try {
-        fit.fit()
-        const dims = fit.proposeDimensions()
-        if (dims) session.resize(dims.cols, dims.rows)
-      } catch { /* ignore */ }
+      // rAF throttle prevents the feedback loop where fit() changes canvas size,
+      // re-triggering the observer and making the terminal grow indefinitely.
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        try {
+          fit.fit()
+          const dims = fit.proposeDimensions()
+          if (dims) session.resize(dims.cols, dims.rows)
+        } catch { /* ignore */ }
+      })
     })
-    ro.observe(containerRef.current)
+    ro.observe(target)
 
     return () => {
       ro.disconnect()
+      cancelAnimationFrame(rafId)
       term.dispose()
       xtermRef.current  = null
       fitRef.current    = null
@@ -214,8 +235,15 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
     }
   }
 
+  const handlePopOut = () =>
+    window.open(
+      `${window.location.origin}/?popup=1`,
+      '_blank',
+      'popup=yes,width=1280,height=800,toolbar=no,menubar=no'
+    )
+
   return (
-    <div className="flex flex-col gap-4 h-full animate-fade-in">
+    <div className="flex flex-col gap-4 h-full w-full min-w-0 animate-fade-in">
       {/* OS Selector */}
       <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4">
         <OSSelector
@@ -275,8 +303,41 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
         )}
       </div>
 
+      {/* Resource status bar — terminal-side only, no raw host data */}
+      {stats && (
+        <div className={`flex items-center gap-3 px-3 py-1.5 rounded-xl border text-xs transition-all shrink-0 ${
+          stats.overloaded
+            ? 'bg-red-500/10 border-red-500/30'
+            : 'bg-slate-900/40 border-slate-700/40'
+        }`}>
+          {stats.overloaded && (
+            <span className="flex items-center gap-1.5 text-red-400 font-medium shrink-0">
+              <AlertTriangle className="w-3 h-3" />
+              {stats.cpu >= stats.killThreshold || stats.mem >= stats.killThreshold
+                ? 'Server critically overloaded — sessions are being terminated'
+                : 'Server at capacity — new sessions paused'}
+            </span>
+          )}
+          <span className={`flex items-center gap-1 ${
+            stats.cpu >= stats.killThreshold ? 'text-red-400' :
+            stats.cpu >= stats.overloadThreshold ? 'text-amber-400' : 'text-emerald-400'
+          }`}>
+            <Cpu className="w-3 h-3" />CPU {stats.cpu}%
+          </span>
+          <span className={`flex items-center gap-1 ${
+            stats.mem >= stats.killThreshold ? 'text-red-400' :
+            stats.mem >= stats.overloadThreshold ? 'text-amber-400' : 'text-emerald-400'
+          }`}>
+            <MemoryStick className="w-3 h-3" />RAM {stats.mem}%
+          </span>
+
+        </div>
+      )}
+
       {/* Terminal window */}
-      <div className="flex-1 flex flex-col bg-[#0d1117] border border-slate-700/50 rounded-2xl overflow-hidden min-h-0 shadow-2xl">
+      <div
+        ref={termWrapRef}
+        className="flex-1 flex flex-col w-full min-w-0 bg-[#0d1117] border border-slate-700/50 rounded-2xl overflow-hidden min-h-0 shadow-2xl">
         {/* Title bar */}
         <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-900/80 border-b border-slate-700/50 shrink-0">
           {/* Traffic lights */}
@@ -308,6 +369,13 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
             >
               <Copy className={`w-3.5 h-3.5 ${copyFeedback ? 'text-green-400' : ''}`} />
             </button>
+            <button
+              onClick={handlePopOut}
+              className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 transition-colors"
+              title="Open in new window"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
@@ -332,11 +400,11 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
           </div>
         )}
 
-        {/* xterm.js container */}
+        {/* xterm.js container — overflow:hidden prevents canvas escaping bounds */}
         <div
           ref={containerRef}
-          className="flex-1 p-3 min-h-0"
-          style={{ fontVariantLigatures: 'none' }}
+          className="flex-1 p-3 min-h-0 overflow-hidden"
+          style={{ fontVariantLigatures: 'none', width: '100%', minWidth: 0 }}
         />
       </div>
 

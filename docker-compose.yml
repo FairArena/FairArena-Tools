@@ -1,0 +1,52 @@
+# FairArena — Backend-only Docker Compose
+# The frontend is deployed separately on Vercel (or any static host).
+# Set VITE_API_URL=https://your-vps.example.com in Vercel's env settings.
+#
+# Usage:
+#   cp .env.example .env && nano .env
+#   docker compose up -d
+#   docker compose logs -f server
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: fairarena-server:latest
+    container_name: fairarena-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      NODE_ENV: production
+    env_file:
+      - .env
+    volumes:
+      # Docker socket — required for spawning sandbox containers.
+      # The server runs as a non-root user; grant socket access with:
+      #   sudo setfacl -m user:1001:rw /var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    # Prevent the server container from consuming unbounded memory
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "2"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - fairarena
+
+networks:
+  fairarena:
+    driver: bridge
+
