@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import dns from 'node:dns';
 import os from 'node:os';
+import hpp from 'hpp';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -35,6 +36,7 @@ import {
   overloadThreshold,
   killThreshold,
 } from './resources.js';
+import { arcjetMiddleware }from './arcjet.middleware.js';
 
 // ---- Config ------------------------------------------------------------------
 
@@ -86,12 +88,41 @@ const ALLOWED_ORIGINS =
 // ---- App ---------------------------------------------------------------------
 
 const app = express();
+app.use(hpp());
 app.set('trust proxy', 1);
+app.use(arcjetMiddleware);
 
+// Security headers: enable a reasonably strict CSP and other protections.
 app.use(
-  helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentSecurityPolicy: false }),
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "https://www.googletagmanager.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        imgSrc: ["'self'", 'data:', 'https://fra.cloud.appwrite.io'],
+        connectSrc: ["'self'", 'wss:', 'https://fra.cloud.appwrite.io'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  }),
 );
 
+// Enforce HTTPS in production (redirect HTTP -> HTTPS)
+if (NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    const proto = req.headers['x-forwarded-proto'] || (req as any).protocol
+    if (typeof proto === 'string' && proto.split(',')[0].trim() === 'http') {
+      const host = req.headers.host
+      return res.redirect(301, `https://${host}${req.url}`)
+    }
+    next()
+  })
+}
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -127,6 +158,8 @@ app.use(
     limit: '512kb',
   }),
 );
+
+app.get('/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
 
 // ---- DNS resolver cache + rate limit -------------------------------------
 const DNS_CACHE_TTL_MS = Math.max(15_000, Number(process.env.DNS_CACHE_TTL_MS ?? 60_000));
