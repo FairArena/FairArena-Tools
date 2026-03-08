@@ -8,10 +8,6 @@ import type { OsImage } from "./types/index.js";
 
 type Tab = "terminal" | "api" | "webhook";
 
-/** True when the page is opened as a popup (terminal-only mode). */
-const isPopup = typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('popup') === '1';
-
 export default function App() {
   const [tab, setTab] = useState<Tab>("terminal");
   const [osImages, setOsImages] = useState<OsImage[]>([]);
@@ -68,14 +64,6 @@ export default function App() {
       });
   }, []);
 
-  // ── Popup / embedded terminal mode ─────────────────────────────────────────────
-  if (isPopup) {
-    return (
-      <div className="flex flex-col h-dvh bg-surface-950 overflow-hidden">
-        <TerminalPane osImages={osImages} />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col min-h-dvh bg-surface-950">

@@ -42,8 +42,7 @@ interface Channel {
 }
 
 // ---- Constants ---------------------------------------------------------------
-
-const WH_TTL_MS = 60 * 60_000;
+// Note: most limits/TTLs are fetched from the server via /api/config
 
 const METHOD_COLORS: Record<string, string> = {
   GET: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
@@ -132,7 +131,7 @@ function QrCodeImage({ url }: { url: string }) {
 
 // ---- Expiry Countdown -------------------------------------------------------
 
-function ExpiryCountdown({ expiresAt }: { expiresAt: number }) {
+function ExpiryCountdown({ expiresAt, ttlMs }: { expiresAt: number; ttlMs: number }) {
   const [remaining, setRemaining] = useState(expiresAt - Date.now());
 
   useEffect(() => {
@@ -144,7 +143,7 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: number }) {
     return () => clearInterval(t);
   }, [expiresAt]);
 
-  const pct = Math.max(0, Math.min(100, (remaining / WH_TTL_MS) * 100));
+  const pct = Math.max(0, Math.min(100, (remaining / ttlMs) * 100));
   const urgent = remaining < 5 * 60_000;
   const warning = remaining < 15 * 60_000;
 
@@ -641,7 +640,7 @@ function EmptyEvents({ channelUrl }: { channelUrl: string }) {
 
 // ---- URL Bar -----------------------------------------------------------------
 
-function UrlBar({ channelUrl, ch }: { channelUrl: string; ch: Channel }) {
+function UrlBar({ channelUrl, ch, ttlMs }: { channelUrl: string; ch: Channel; ttlMs: number }) {
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -726,7 +725,7 @@ function UrlBar({ channelUrl, ch }: { channelUrl: string; ch: Channel }) {
         <div className="mt-4 flex items-start gap-6 pt-4 border-t border-slate-800/60">
           <QrCodeImage url={channelUrl} />
           <div className="flex-1">
-            <ExpiryCountdown expiresAt={ch.expiresAt} />
+            <ExpiryCountdown expiresAt={ch.expiresAt} ttlMs={ttlMs} />
             <p className="text-[10px] text-slate-600 mt-3">
               Channel ID:{" "}
               <span className="font-mono text-slate-500">{ch.id}</span>
@@ -743,7 +742,7 @@ function UrlBar({ channelUrl, ch }: { channelUrl: string; ch: Channel }) {
 
       {!showQr && (
         <div className="mt-3">
-          <ExpiryCountdown expiresAt={ch.expiresAt} />
+          <ExpiryCountdown expiresAt={ch.expiresAt} ttlMs={ttlMs} />
         </div>
       )}
     </div>
@@ -784,6 +783,20 @@ function persistChannels(channels: Channel[]) {
 // ---- Main Component ----------------------------------------------------------
 
 export function WebhookDumper() {
+  const [cfg, setCfg] = useState<{
+    webhook?: { ttlMs?: number; maxEvents?: number; createLimit?: number; maxChannels?: number }
+    limits?: { maxSessions?: number; maxSessionsPerIp?: number }
+    rates?: Record<string, number>
+    thresholds?: Record<string, number>
+  } | null>(null)
+
+  // Load public config from server to avoid hardcoding client-side limits
+  useEffect(() => {
+    fetch(`${API_BASE}/api/config`).then(async (r) => {
+      if (!r.ok) return;
+      try { const j = await r.json(); setCfg(j) } catch {}
+    }).catch(() => {})
+  }, [])
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<WebhookEvent | null>(null);
@@ -873,7 +886,8 @@ export function WebhookDumper() {
         setChannels((prev) =>
           prev.map((c) => {
             if (c.id !== id) return c;
-            const events = [...c.events, event].slice(-200);
+            const maxEvents = cfg?.webhook?.maxEvents ?? 200;
+            const events = [...c.events, event].slice(-maxEvents);
             return {
               ...c,
               status: "live" as const,
@@ -1176,11 +1190,11 @@ export function WebhookDumper() {
           ))}
         </div>
 
-        {/* Create new */}
+          {/* Create new */}
         <div className="p-2 border-t border-slate-700/40">
           <button
             onClick={createChannel}
-            disabled={creating || channels.length >= 10}
+            disabled={creating || channels.length >= (cfg?.webhook?.maxChannels ?? 10)}
             className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600/80 hover:bg-brand-500/80 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl transition-all"
           >
             {creating ? (
@@ -1190,9 +1204,9 @@ export function WebhookDumper() {
             )}
             {creating ? "Creating…" : "New Channel"}
           </button>
-          {channels.length >= 10 && (
+          {channels.length >= (cfg?.webhook?.maxChannels ?? 10) && (
             <p className="text-[10px] text-slate-600 text-center mt-1.5">
-              Max 10 channels
+              Max {cfg?.webhook?.maxChannels ?? 10} channels
             </p>
           )}
         </div>
@@ -1224,13 +1238,13 @@ export function WebhookDumper() {
               },
               {
                 icon: <Clock className="w-4 h-4" />,
-                label: "1 hour TTL",
+                label: cfg?.webhook?.ttlMs ? `${Math.round((cfg.webhook.ttlMs ?? 3600000) / 3600000)} hour TTL` : "1 hour TTL",
                 sub: "Auto-expires",
               },
               {
                 icon: <Layers className="w-4 h-4" />,
                 label: "Multi-channel",
-                sub: "Up to 10",
+                sub: `Up to ${cfg?.webhook?.maxChannels ?? 10}`,
               },
             ].map((f) => (
               <div
@@ -1260,7 +1274,7 @@ export function WebhookDumper() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-slate-900/20 rounded-r-2xl border border-l-0 border-slate-700/40 overflow-hidden">
           {/* Top: URL bar */}
           <div className="p-4 border-b border-slate-700/40 shrink-0">
-            <UrlBar channelUrl={channelUrl!} ch={activeChannel} />
+            <UrlBar channelUrl={channelUrl!} ch={activeChannel} ttlMs={cfg?.webhook?.ttlMs ?? 60 * 60_000} />
           </div>
 
           {/* Split: event list + inspector */}

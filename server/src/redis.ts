@@ -105,8 +105,11 @@ export function keyDailyBlocked(ip: string): string {
 
 // ─── Per-IP session gate ──────────────────────────────────────────────────────
 
-const SESSION_TTL_S  = Math.max(60, Number(process.env.SESSION_TTL_MS ?? 30 * 60_000)) / 1000
-const DAILY_LIMIT_S  = Math.max(60, Number(process.env.DAILY_LIMIT_MS ?? 60 * 60_000)) / 1000
+// Environment values are provided in milliseconds (MS). Enforce a sensible
+// minimum in MS (60s) before converting to seconds to avoid accidentally
+// producing tiny fractional second TTLs when users supply seconds by mistake.
+const SESSION_TTL_S  = Math.max(60_000, Number(process.env.SESSION_TTL_MS ?? 30 * 60_000)) / 1000
+const DAILY_LIMIT_S  = Math.max(60_000, Number(process.env.DAILY_LIMIT_MS ?? 60 * 60_000)) / 1000
 
 /** 25-hour TTL so the daily key always outlives the UTC day */
 const DAY_TTL_S = 25 * 60 * 60
@@ -147,17 +150,37 @@ export async function claimSession(
 
 /**
  * Release the session slot for `ip` and record how long it ran.
- * `startedAt` should be the ms timestamp returned by Date.now() at session start.
+ * `startedAt` should be the ms timestamp from Date.now() at session start.
+ * Only charges the daily counter if the active-session key still belongs to
+ * this sessionId (guards against races/TTL expiry of the Redis key).
  */
-export async function releaseSession(ip: string, startedAtMs: number): Promise<void> {
-  const dur = Math.ceil((Date.now() - startedAtMs) / 1000)
+export async function releaseSession(ip: string, sessionId: string, startedAtMs: number): Promise<void> {
+  // Clamp runtime to a sane max to guard against clock mis-sets.
+  const raw = Math.ceil((Date.now() - startedAtMs) / 1000)
+  const dur = Math.max(0, Math.min(raw, 24 * 60 * 60))
   const dayKey = keyDailySeconds(ip)
 
-  await redis.del(keyActiveSession(ip))
+  const active = await redis.get(keyActiveSession(ip))
+  // Only release and charge if this exact session still owns the key.
+  if (active && active.startsWith(`${sessionId}:`)) {
+    await redis.del(keyActiveSession(ip))
+    if (dur > 0) {
+      await redis.incrby(dayKey, dur)
+      await redis.expire(dayKey, DAY_TTL_S)
+    }
+  }
+}
 
-  if (dur > 0) {
-    await redis.incrby(dayKey, dur)
-    await redis.expire(dayKey, DAY_TTL_S)
+/**
+ * Remove the active-session claim for `ip` if it belongs to `sessionId`.
+ * This is used when a session creation fails after we've set the NX key
+ * but before the session actually started; we must free the slot without
+ * charging the user's daily quota.
+ */
+export async function unclaimSession(ip: string, sessionId: string): Promise<void> {
+  const active = await redis.get(keyActiveSession(ip))
+  if (active && active.startsWith(`${sessionId}:`)) {
+    await redis.del(keyActiveSession(ip))
   }
 }
 

@@ -13,15 +13,26 @@ export interface ResourceSnapshot {
 }
 
 // Block new sessions when CPU or memory reaches this threshold (default 50 %)
-const OVERLOAD_THRESHOLD = Math.max(
-  10,
-  Math.min(99, Number(process.env.OVERLOAD_THRESHOLD ?? 50)),
-)
-// Kill ALL existing sessions when CPU or memory exceeds this harder limit (default 60 %)
-const KILL_THRESHOLD = Math.max(
-  OVERLOAD_THRESHOLD + 1,
-  Math.min(99, Number(process.env.KILL_THRESHOLD ?? 60)),
-)
+// Behavior: if an environment variable is provided we respect the exact numeric
+// value the operator set. Only fall back to the default when the env value
+// is missing or invalid (non-numeric). This avoids silently clamping user
+// choices.
+function parseEnvNumber(name: string, def: number): number {
+  const raw = process.env[name]
+  if (raw === undefined) return def
+  const n = Number(raw)
+  if (!Number.isFinite(n) || isNaN(n)) return def
+  return n
+}
+
+const OVERLOAD_THRESHOLD = parseEnvNumber('OVERLOAD_THRESHOLD', 50)
+
+// Kill ALL existing sessions when CPU or memory exceeds this harder limit.
+// If `KILL_THRESHOLD` is set in env we use it verbatim, otherwise default to
+// `OVERLOAD_THRESHOLD + 1`.
+const KILL_THRESHOLD = process.env.KILL_THRESHOLD !== undefined
+  ? parseEnvNumber('KILL_THRESHOLD', OVERLOAD_THRESHOLD + 1)
+  : OVERLOAD_THRESHOLD + 1
 
 // ─── CPU sampling ─────────────────────────────────────────────────────────────
 

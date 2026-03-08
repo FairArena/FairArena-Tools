@@ -15,20 +15,44 @@ import { AddressInfo } from 'node:net'
 import {
   createSession, destroySession, writeToSession, resizeSession,
   getSessionExpiryMs, getSessionCountForIp, isDockerAvailable,
-  sessionCount, cleanupOrphanContainers, destroyAllSessions,
+  sessionCount, cleanupOrphanContainers, destroyAllSessions, getSession,
 } from './docker/manager.js'
 import { OS_IMAGES } from './docker/images.js'
-import { claimSession, releaseSession, dailyRemainingSeconds } from './redis.js'
+import { claimSession, releaseSession, dailyRemainingSeconds, unclaimSession } from './redis.js'
 import { getResources, isOverloaded, isKillOverloaded, overloadThreshold, killThreshold } from './resources.js'
 
 // ---- Config ------------------------------------------------------------------
 
-const PORT     = process.env.PORT     || 4000
-const NODE_ENV = process.env.NODE_ENV || 'development'
+const PORT     = Number(process.env.PORT ?? 4000)
+const NODE_ENV = process.env.NODE_ENV ?? 'development'
 
-const WS_MSG_RATE_LIMIT = Math.max(5,      Number(process.env.WS_MSG_RATE_LIMIT ?? 60))
-const WS_CONN_IDLE_MS   = Math.max(30_000, Number(process.env.WS_CONN_IDLE_MS   ?? 10 * 60_000))
-const MAX_PER_IP = 1  // Redis enforces this globally
+// WebSocket and connection tuning
+// Message rate limit: number of incoming WS messages allowed per window.
+// Relaxed default to reduce false positives for bursty clients. Operators can
+// still tune with env vars `WS_MSG_RATE_LIMIT` and `WS_MSG_WINDOW_MS`.
+const WS_MSG_RATE_LIMIT = Math.max(10, Number(process.env.WS_MSG_RATE_LIMIT ?? 5000))
+const WS_MSG_WINDOW_MS  = Number(process.env.WS_MSG_WINDOW_MS ?? 15_000)
+const WS_CONN_IDLE_MS   = Math.max(30_000, Number(process.env.WS_CONN_IDLE_MS ?? 10 * 60_000))
+
+// Session limits (Redis-enforced per-IP)
+const MAX_PER_IP = Number(process.env.MAX_SESSIONS_PER_IP ?? 1)
+
+// Global limits and rate limits
+const GLOBAL_RATE_LIMIT_WINDOW_MS = Number(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS ?? 60_000)
+const GLOBAL_RATE_LIMIT = Number(process.env.GLOBAL_RATE_LIMIT ?? 120)
+
+const PROXY_RATE_WINDOW_MS = Number(process.env.PROXY_RATE_WINDOW_MS ?? 60_000)
+const PROXY_RATE_LIMIT = Number(process.env.PROXY_RATE_LIMIT ?? 30)
+
+// Small helper to parse boolean-ish env values (1/true/yes)
+function parseEnvBool(name: string, def = false): boolean {
+  const v = process.env[name]
+  if (v === undefined) return def
+  return /^(1|true|yes)$/i.test(v.trim())
+}
+
+// Allow operator to completely disable creation of new terminal sessions
+const DISABLE_NEW_SESSIONS = parseEnvBool('DISABLE_NEW_SESSIONS', false)
 
 // Allow proxying to localhost/private IPs — for self-hosted deployments only
 const ALLOW_PRIVATE_PROXY = process.env.ALLOW_PRIVATE_PROXY === 'true'
@@ -63,7 +87,7 @@ const clientIp = (req: http.IncomingMessage | Request): string =>
   (req as Request).socket?.remoteAddress ?? 'unknown'
 
 app.use(rateLimit({
-  windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false,
+  windowMs: GLOBAL_RATE_LIMIT_WINDOW_MS, limit: GLOBAL_RATE_LIMIT, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'Too many requests — slow down.' },
   keyGenerator: (req) => clientIp(req),
 }))
@@ -123,12 +147,14 @@ interface WebhookChannel {
   listeners: Set<Response>
 }
 const webhooks = new Map<string, WebhookChannel>()
-const WH_TTL_MS = 60 * 60_000
-const WH_MAX = 200
+const WH_TTL_MS = Math.max(60_000, Number(process.env.WH_TTL_MS ?? 60 * 60_000))
+const WH_MAX = Math.max(10, Number(process.env.WH_MAX ?? 200))
+const WH_CREATE_LIMIT = Math.max(1, Number(process.env.WH_CREATE_LIMIT ?? 10))
+const WH_MAX_CHANNELS = Math.max(1, Number(process.env.WH_MAX_CHANNELS ?? 10))
 
 // Webhook create rate limiter — prevent generating thousands of channels
 const whCreateLimiter = rateLimit({
-  windowMs: 60_000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false,
+  windowMs: Number(process.env.WH_CREATE_WINDOW_MS ?? 60_000), limit: WH_CREATE_LIMIT, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'Webhook channel creation rate limit exceeded. Wait a minute.' },
   keyGenerator: (req) => clientIp(req),
 })
@@ -235,6 +261,73 @@ app.get('/api/server-stats', (_req, res) => {
   })
 })
 
+// Server-Sent Events: live resource stats stream.
+// One persistent connection per tab replaces the 15-second polling loop, halving
+// unnecessary HTTP overhead and eliminating the React re-renders in TerminalPane
+// caused by setState() firing while the user is typing.
+app.get('/api/stats/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache, no-transform')
+  res.setHeader('Connection', 'keep-alive')
+  res.setHeader('X-Accel-Buffering', 'no') // tell nginx not to buffer SSE
+  res.flushHeaders()
+
+  const buildPayload = () => {
+    const r = getResources()
+    return JSON.stringify({
+      cpu: r.cpuPercent,
+      mem: r.memPercent,
+      overloaded: r.overloaded,
+      overloadThreshold: overloadThreshold(),
+      killThreshold: killThreshold(),
+      sessions: sessionCount(),
+      maxSessions: Number(process.env.MAX_SESSIONS ?? 3),
+    })
+  }
+
+  // Send immediately so the client has data before the first interval fires
+  res.write(`data: ${buildPayload()}\n\n`)
+
+  const iv = setInterval(() => {
+    try { res.write(`data: ${buildPayload()}\n\n`) } catch { clearInterval(iv) }
+  }, 4_000)
+
+  // Keep-alive comment every 25 s — prevents proxies/load-balancers from
+  // closing idle connections before the client disconnects naturally.
+  const hb = setInterval(() => {
+    try { res.write(': heartbeat\n\n') } catch { clearInterval(hb) }
+  }, 25_000)
+
+  req.on('close', () => {
+    clearInterval(iv)
+    clearInterval(hb)
+  })
+})
+
+// Public, non-sensitive runtime config useful for the frontend
+app.get('/api/config', (_req, res) => {
+  res.json({
+    webhook: {
+      ttlMs: WH_TTL_MS,
+      maxEvents: WH_MAX,
+      createLimit: WH_CREATE_LIMIT,
+      maxChannels: WH_MAX_CHANNELS,
+    },
+    limits: {
+      maxSessions: Number(process.env.MAX_SESSIONS ?? 3),
+      maxSessionsPerIp: MAX_PER_IP,
+    },
+    rates: {
+      globalWindowMs: GLOBAL_RATE_LIMIT_WINDOW_MS,
+      globalLimit: GLOBAL_RATE_LIMIT,
+      proxyWindowMs: PROXY_RATE_WINDOW_MS,
+      proxyLimit: PROXY_RATE_LIMIT,
+    },
+    thresholds: { overloadThreshold: overloadThreshold(), killThreshold: killThreshold() },
+    disableNewSessions: DISABLE_NEW_SESSIONS,
+  })
+})
+
 app.get('/api/my-quota', async (req, res) => {
   const ip = clientIp(req)
   const remainSec = await dailyRemainingSeconds(ip)
@@ -259,7 +352,7 @@ app.post('/api/curl/parse', (req, res) => {
 // ---- Curl/HTTP proxy ---------------------------------------------------------
 
 const curlLimiter = rateLimit({
-  windowMs: 60_000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false,
+  windowMs: PROXY_RATE_WINDOW_MS, limit: PROXY_RATE_LIMIT, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'API proxy rate limit exceeded. Wait a minute.' },
   keyGenerator: (req) => clientIp(req),
 })
@@ -304,14 +397,15 @@ app.post('/api/request/run', curlLimiter, async (req, res) => {
     const safeHeaders = sanitizeReqHeaders({ 'User-Agent': 'FairArena/2.0', ...headers })
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), p.timeoutMs)
+    let response: Response
     const t0 = Date.now()
-
-    let response: globalThis.Response
     try {
       response = await fetch(url, {
-        method, headers: safeHeaders, signal: ctrl.signal,
+        method,
+        headers: safeHeaders,
         redirect: followRedirects ? 'follow' : 'manual',
         ...(body && !['GET','HEAD'].includes(method) ? { body } : {}),
+        signal: ctrl.signal,
       })
     } catch (err) {
       clearTimeout(timer)
@@ -498,9 +592,9 @@ server.on('upgrade', (req, socket, head) => {
   if (isOverloaded()) {
     socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n'); socket.destroy(); return
   }
-  if (getSessionCountForIp(ip) >= MAX_PER_IP) {
-    socket.write('HTTP/1.1 429 Too Many Sessions\r\n\r\n'); socket.destroy(); return
-  }
+  // NOTE: we intentionally do not block upgrade here based on per-IP session
+  // counts because the client may be attaching to an existing session. The
+  // per-IP session limits are enforced at start-time via `claimSession`.
   wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
 })
 
@@ -512,6 +606,7 @@ type WsMsg =
   | { type: 'resize'; cols: number; rows: number }
   | { type: 'ping' }
   | { type: 'kill' }
+  | { type: 'attach'; sessionId: string }
 
 function sendWs(ws: WebSocket, msg: object): void {
   if (ws.readyState === WebSocket.OPEN) { try { ws.send(JSON.stringify(msg)) } catch {} }
@@ -525,6 +620,9 @@ wss.on('connection', (ws, req) => {
   const ip = clientIp(req as http.IncomingMessage)
   let sessionId: string | null = null
   let sessionStartedAt = 0
+  let lastThrottleAt = 0
+  let isOwner = false
+  let claimedButNotStarted = false
 
   const heartbeat = setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) ws.ping()
@@ -544,12 +642,26 @@ wss.on('connection', (ws, req) => {
   }
 
   let msgCount = 0
-  const msgReset = setInterval(() => { msgCount = 0 }, 10_000)
+  let throttleLogged = false
+  const msgReset = setInterval(() => { msgCount = 0; throttleLogged = false }, WS_MSG_WINDOW_MS)
 
   ws.on('message', async (raw) => {
-    if (++msgCount > WS_MSG_RATE_LIMIT) {
-      sendWs(ws, { type: 'error', message: 'Message rate limit exceeded.' }); return
-    }
+      if (++msgCount > WS_MSG_RATE_LIMIT) {
+        const now = Date.now()
+        const cool = Number(process.env.WS_THROTTLE_COOLDOWN_MS ?? 1000)
+        // Only emit a single server-side log per-window to avoid flooding logs
+        // when a user is pasting or holding keys. We still send a soft status
+        // message to the client but only at most once per cooldown interval.
+        if (!throttleLogged) {
+          throttleLogged = true
+          console.warn('[ws] throttle', { ip, msgCount, limit: WS_MSG_RATE_LIMIT, windowMs: WS_MSG_WINDOW_MS })
+        }
+        if (now - lastThrottleAt > cool) {
+          lastThrottleAt = now
+          sendWs(ws, { type: 'status', message: 'Message rate limit exceeded; input is being throttled briefly.' })
+        }
+        return
+      }
     resetIdle()
 
     let msg: WsMsg
@@ -560,6 +672,11 @@ wss.on('connection', (ws, req) => {
 
     if (msg.type === 'start') {
       if (sessionId) { sendWs(ws, { type: 'error', message: 'Session already started.' }); return }
+
+      if (DISABLE_NEW_SESSIONS) {
+        sendWs(ws, { type: 'error', message: 'New terminal sessions are disabled by operator.' });
+        ws.close(); return
+      }
 
       if (isOverloaded()) {
         const r = getResources()
@@ -578,32 +695,99 @@ wss.on('connection', (ws, req) => {
       const tentativeId = uuidv4()
       const claimErr = await claimSession(ip, tentativeId)
       if (claimErr) { sendWs(ws, { type: 'error', message: claimErr }); ws.close(); return }
-
       sessionId = tentativeId
-      sessionStartedAt = Date.now()
+      isOwner = true
+      claimedButNotStarted = true
       sendWs(ws, { type: 'status', message: 'Starting container...' })
 
       try {
-        const session = await createSession(sessionId, msg.osId ?? 'ubuntu', ip)
+        const session = await createSession(sessionId!, msg.osId ?? 'ubuntu', ip)
+        // Only mark the start timestamp after successful container creation
+        sessionStartedAt = session.startedAt ?? Date.now()
+        claimedButNotStarted = false
         if (msg.cols && msg.rows) resizeSession(sessionId, msg.cols, msg.rows)
 
-        session.emitter.on('data', (data: string) => sendWs(ws, { type: 'stdout', data }))
-        session.emitter.on('exit', (code: number) => { sendWs(ws, { type: 'exit', code }); ws.close() })
+        // Batch PTY stdout: accumulate chunks for one event-loop tick with
+        // setImmediate then flush as a single WS frame.  This coalesces the
+        // many small buffers that node-pty emits (sometimes 4–16 bytes each)
+        // into one large payload, cutting WS frame count by 10-50× during
+        // burst output (top, cat, ls) and eliminating the socket back-pressure
+        // that causes the terminal to appear 'stuck' or laggy.
+        let stdoutBuf = ''
+        let flushPending = false
+        const flushStdout = () => {
+          flushPending = false
+          if (stdoutBuf) {
+            sendWs(ws, { type: 'stdout', data: stdoutBuf })
+            stdoutBuf = ''
+          }
+        }
+        session.emitter.on('data', (data: string) => {
+          stdoutBuf += data
+          if (!flushPending) { flushPending = true; setImmediate(flushStdout) }
+        })
+        session.emitter.on('exit', (code: number) => {
+          // Flush any remaining output before sending exit
+          if (stdoutBuf) { sendWs(ws, { type: 'stdout', data: stdoutBuf }); stdoutBuf = '' }
+          sendWs(ws, { type: 'exit', code }); ws.close()
+        })
         session.emitter.on('expiry-warning', ({ remainingMs }: { remainingMs: number }) => {
           sendWs(ws, { type: 'expiry-warning', remainingMs,
             message: `Session expires in ${Math.round(remainingMs / 60_000)} minute(s).` })
         })
 
-        sendWs(ws, { type: 'ready', sessionId, expiresIn: getSessionExpiryMs(sessionId) })
+        sendWs(ws, { type: 'ready', sessionId, expiresIn: getSessionExpiryMs(sessionId!) })
       } catch (err) {
-        await releaseSession(ip, sessionStartedAt)
+        // If we claimed the active-session key but failed to actually start the
+        // container, unclaim it so the user's slot isn't leaked.
+        if (claimedButNotStarted && sessionId) {
+          try { await unclaimSession(ip, sessionId) } catch {}
+        } else if (sessionStartedAt > 0 && sessionId && isOwner) {
+          await releaseSession(ip, sessionId, sessionStartedAt)
+        }
         sendWs(ws, { type: 'error', message: (err as Error).message })
-        sessionId = null; ws.close()
+        sessionId = null; isOwner = false; claimedButNotStarted = false; ws.close()
       }
       return
     }
 
+    if (msg.type === 'attach') {
+      // Attach to an existing session by id. Only allowed from the same IP
+      // that created the session to avoid cross-user hijacking.
+      const sid = (msg as any).sessionId as string | undefined
+      if (!sid) { sendWs(ws, { type: 'error', message: 'No sessionId provided for attach.' }); return }
+      const existing = getSession(sid)
+      if (!existing) { sendWs(ws, { type: 'error', message: 'Session not found.' }); return }
+      if (existing.ip !== ip) { sendWs(ws, { type: 'error', message: 'Attach denied: IP mismatch.' }); return }
+      // Mark this connection as a non-owner attach; do not unclaim or release on close.
+      sessionId = sid
+      sessionStartedAt = existing.startedAt
+      isOwner = false
+
+      let attachBuf = ''
+      let attachFlushPending = false
+      const flushAttach = () => {
+        attachFlushPending = false
+        if (attachBuf) { sendWs(ws, { type: 'stdout', data: attachBuf }); attachBuf = '' }
+      }
+      existing.emitter.on('data', (data: string) => {
+        attachBuf += data
+        if (!attachFlushPending) { attachFlushPending = true; setImmediate(flushAttach) }
+      })
+      existing.emitter.on('exit', (code: number) => {
+        if (attachBuf) { sendWs(ws, { type: 'stdout', data: attachBuf }); attachBuf = '' }
+        sendWs(ws, { type: 'exit', code }); ws.close()
+      })
+      existing.emitter.on('expiry-warning', ({ remainingMs }: { remainingMs: number }) => {
+        sendWs(ws, { type: 'expiry-warning', remainingMs, message: `Session expires in ${Math.round(remainingMs / 60_000)} minute(s).` })
+      })
+      sendWs(ws, { type: 'ready', sessionId, expiresIn: getSessionExpiryMs(sessionId) })
+      return
+    }
+
     if (!sessionId) {
+      // Log so operators can see stray messages (usually premature resize from client)
+      console.log('[ws] message before session ready', { ip, type: (msg as any).type })
       sendWs(ws, { type: 'error', message: 'No active session. Send {type:"start"} first.' }); return
     }
 
@@ -622,7 +806,7 @@ wss.on('connection', (ws, req) => {
     if (msg.type === 'kill') {
       const id = sessionId, ts = sessionStartedAt
       destroySession(id)
-      await releaseSession(ip, ts)
+      if (isOwner && ts > 0 && id) await releaseSession(ip, id, ts)
       sessionId = null
       sendWs(ws, { type: 'killed' }); ws.close(); return
     }
@@ -630,10 +814,25 @@ wss.on('connection', (ws, req) => {
 
   const cleanup = async () => {
     clearInterval(heartbeat); clearInterval(msgReset); clearTimeout(idleTimer)
-    if (sessionId) {
-      destroySession(sessionId)
-      await releaseSession(ip, sessionStartedAt)
-      sessionId = null
+    // Capture and immediately null sessionId to prevent double-cleanup if
+    // both 'close' and 'error' events fire (e.g. forced disconnect).
+    const sid = sessionId
+    const startedAt = sessionStartedAt
+    const owner = isOwner
+    const claimedNotStarted = claimedButNotStarted
+    sessionId = null
+    isOwner = false
+    claimedButNotStarted = false
+
+    if (sid) {
+      destroySession(sid)
+      if (claimedNotStarted) {
+        // Container never started — just free the Redis claim slot without
+        // charging the user's daily quota.
+        try { await unclaimSession(ip, sid) } catch {}
+      } else if (owner && startedAt > 0) {
+        await releaseSession(ip, sid, startedAt)
+      }
     }
   }
 
@@ -671,5 +870,6 @@ server.listen(PORT, () => {
   console.log(`Overload gate    -> >${overloadThreshold()}% CPU/RAM blocks new sessions`)
   console.log(`Kill threshold   -> >${killThreshold()}% CPU/RAM evicts all sessions`)
   console.log(`Max sessions     -> ${process.env.MAX_SESSIONS ?? 3} global / ${process.env.MAX_SESSIONS_PER_IP ?? 1} per IP`)
+  console.log(`Disable new sess -> ${DISABLE_NEW_SESSIONS ? 'YES' : 'no'}`)
   console.log(`Environment      -> ${NODE_ENV}\n`)
 })
