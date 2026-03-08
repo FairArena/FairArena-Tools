@@ -19,19 +19,16 @@ export const OS_IMAGES: OsImage[] = [
   {
     id: 'debian',
     label: 'Debian 12',
-    // Use official Debian slim image (pulled from Docker Hub). The slim
-    // variant may not include bash in minimal variants, so use /bin/sh
-    // as a compatible fallback.
+    // Use custom Debian image with sandbox user and tools
     image: 'debian:bookworm-slim',
-    shell: '/bin/sh',
+    shell: '/bin/bash',
     description: 'Stable, minimal Debian. Foundation for many distros.',
     badge: 'Stable',
   },
   {
     id: 'alpine',
     label: 'Alpine 3.19',
-    // Alpine is tiny and uses /bin/sh (busybox ash). Pull the official
-    // Alpine image from Docker Hub so hosts without local builds can run it.
+    // Use custom Alpine image with sandbox user and tools
     image: 'alpine:3.19',
     shell: '/bin/sh',
     description: 'Ultra-lightweight Linux. Only 5 MB. Uses musl libc.',

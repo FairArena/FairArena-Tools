@@ -1,5 +1,5 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -19,34 +19,30 @@ RUN pnpm run build
 RUN pnpm prune --prod
 
 # ── Stage 2: production image ─────────────────────────────────────────────────
-FROM node:22-alpine AS runner
-
-# Non-root user for security
-RUN addgroup -S fairarena && adduser -S fairarena -G fairarena
+FROM node:22-slim AS runner
 
 # Install Docker CLI for container management
-RUN apk add --no-cache docker-cli
-
-# Add user to docker group for socket access
-RUN addgroup -S docker && addgroup fairarena docker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    docker.io \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy compiled output and production node_modules
-COPY --from=builder --chown=fairarena:fairarena /app/dist ./dist
-COPY --from=builder --chown=fairarena:fairarena /app/node_modules ./node_modules
-COPY --from=builder --chown=fairarena:fairarena /app/package.json ./
+COPY --from=builder --chown=root:root /app/dist ./dist
+COPY --from=builder --chown=root:root /app/node_modules ./node_modules
+COPY --from=builder --chown=root:root /app/package.json ./
 
 # The server needs the Docker socket for spawning containers — mount it at runtime.
-# We intentionally do NOT include Docker CLI here; the host socket is bind-mounted.
-
-USER fairarena
+# Docker CLI is included for container management.
 
 ENV NODE_ENV=production
 
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:4000/api/health || exit 1
+  CMD curl -f http://localhost:4000/api/health || exit 1
 
 CMD ["node", "dist/index.js"]

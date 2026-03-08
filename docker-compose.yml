@@ -19,6 +19,7 @@ services:
       - "127.0.0.1:${PORT:-4000}:4000"
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=256
     env_file:
       - .env
     volumes:
@@ -27,17 +28,11 @@ services:
       #   sudo setfacl -m user:1001:rw /var/run/docker.sock
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
       interval: 30s
       timeout: 5s
       start_period: 15s
       retries: 3
-    # Prevent the server container from consuming unbounded memory
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: "2"
     logging:
       driver: "json-file"
       options:

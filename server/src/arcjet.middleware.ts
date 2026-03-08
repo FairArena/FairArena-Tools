@@ -50,7 +50,7 @@ export const arcjetMiddleware = async (req: Request, res: Response, next: NextFu
   }
 
   try {
-    const decision = await aj.protect(req, { requested: 1, getClientIP: () => getClientIP(req) } as any);
+    const decision = await aj.protect(req, { requested: 1 });
 
     if (decision.isDenied()) {
       if (decision.reason.isRateLimit()) {
