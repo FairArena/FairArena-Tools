@@ -1,0 +1,27 @@
+{
+  "name": "fairarena-template",
+  "version": "0.0.0",
+  "private": true,
+  "author": "FairArena",
+  "packageManager": "pnpm@10.28.0",
+  "description": "Base template for FairArena projects with Prettier and Husky configured",
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "check-format": "prettier --check .",
+    "lint": "eslint ."
+  },
+  "lint-staged": {
+    "**/*.{js,jsx,ts,tsx,json,css,scss,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "prettier": "^3.8.1"
+  },
+  "dependencies": {
+    "commitlint": "^20.4.3"
+  }
+}

@@ -1,0 +1,24 @@
+# FairArena - Cline AI Context
+
+## Project Identity
+**Name:** FairArena - Curl Tester
+**Type:** Web playground (sandboxed terminals + API tester)
+**Stage:** Development
+
+## Technology Stack
+- **Frontend:** React 19, TypeScript, Vite, TailwindCSS
+- **Backend:** Node 22, TypeScript, Express, node-pty, Docker
+- **Infrastructure:** Docker Compose; optional Upstash Redis for session claims
+
+## Architecture
+- **API:** RESTful endpoints for cURL parsing, proxying (SSRF-protected), and webhooks
+- **Sandbox:** Docker containers launched per-session with strict resource caps
+
+## Environment Variables (examples)
+- `PORT`, `ALLOWED_ORIGINS`, `VITE_API_URL`, `UPSTASH_REDIS_URL`
+
+## Critical Rules
+1. TypeScript strict mode
+2. Input validation with `zod`
+3. Never log secrets
+4. Graceful error handling for async operations

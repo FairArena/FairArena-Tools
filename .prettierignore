@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.out/
+.next/
+coverage/
+
+# Static site / docs generators
+.docusaurus/
+
+# Caches
+.cache/
+.pnpm-store/
+
+# Lockfiles (never format)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+bun.lockb
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Misc generated files
+*.min.*

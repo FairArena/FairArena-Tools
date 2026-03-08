@@ -1,0 +1,42 @@
+# FairArena - Cursor AI Context
+
+## Project Overview
+FairArena - Curl Tester is a developer-facing playground that provides
+sandboxed Docker terminals, a cURL/API tester, and a webhook inspector. It's
+intended for demos, learning, and safe experimentation; all sandboxes are
+ephemeral and resource-limited.
+
+**Live URL:** (set when deployed)
+**Author:** FairArena
+**License:** MIT
+
+## Tech Stack
+- **Frontend:** React 19, TypeScript, Vite, TailwindCSS
+- **Backend:** Node 22, TypeScript, Express, node-pty, Docker
+- **Optional components:** Upstash Redis (session claims), Nginx/Caddy reverse
+	proxy for production
+
+## Infrastructure
+- **Container:** Docker + Docker Compose (server runs sandbox containers)
+- **Security:** Read-only rootfs + `--tmpfs` writable dirs, `--cap-drop=ALL`
+
+## Project Structure (high level)
+```
+.
+├── server/
+│   ├── src/
+│   │   ├── index.ts         # Express app + WS + terminal manager
+│   │   └── docker/manager.ts
+└── client/
+		└── src/
+```
+
+## Coding Guidelines (summary)
+- TypeScript: `strict` on; prefer `unknown` over `any` when necessary
+- React: Small functional components, hooks-only, prefer composition
+- API: Keep endpoints thin; validate inputs with `zod`
+
+## Important Rules
+1. Never commit secrets
+2. Validate inputs server-side
+3. Keep Docker sandboxes ephemeral and resource-limited

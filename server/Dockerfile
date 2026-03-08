@@ -4,16 +4,19 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Install dependencies first (better layer caching)
-COPY package*.json ./
-RUN npm ci --ignore-scripts
+COPY package.json pnpm-lock.yaml ./
+
+# Install pnpm and project dependencies using the lockfile for reproducible builds
+RUN npm install -g pnpm@latest
+RUN pnpm install --frozen-lockfile
 
 # Copy source and compile TypeScript
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build
+RUN pnpm run build
 
-# Prune dev-dependencies
-RUN npm prune --omit=dev
+# Prune dev-dependencies using pnpm
+RUN pnpm prune --prod
 
 # ── Stage 2: production image ─────────────────────────────────────────────────
 FROM node:22-alpine AS runner

@@ -1,0 +1,32 @@
+# FairArena - Windsurf AI Context
+
+## Project Overview
+FairArena - Curl Tester is a lightweight playground that exposes an API tester,
+ephemeral Docker terminals and a webhook dumper for debugging integrations and
+teaching HTTP mechanics.
+
+**Live:** (set when deployed)
+**API:** (set when deployed)
+**Author:** FairArena
+
+## Stack
+**Frontend:** React 19 + TypeScript + Vite + TailwindCSS
+**Backend:** Node 22 + TypeScript + Express + node-pty + Docker
+**Cache:** Optional Upstash Redis for session claim tracking
+
+## Architecture Highlights
+- Sandboxes use read-only rootfs + `--tmpfs` writable directories and run as
+  an unprivileged numeric UID to reduce risk
+- API proxy includes private-IP regex blocking to reduce SSRF risks
+
+## Code Standards
+### TypeScript
+Use `strict` and explicit types; prefer `unknown` to `any` where possible.
+
+### React Components
+- Functional components only
+- Keep components small and well-typed
+
+## Environment Variables (examples)
+**Backend:** `PORT`, `ALLOWED_ORIGINS`, `UPSTASH_REDIS_URL`
+**Frontend:** `VITE_API_URL`

@@ -124,8 +124,8 @@ export async function claimSession(
 ): Promise<string | null> {
   // 1. Check daily quota
   const dayKey    = keyDailySeconds(ip)
-  const usedRaw   = await redis.get(dayKey)
-  const usedSec   = Number(usedRaw ?? 0)
+   const usedRaw: string | null = (await redis.get(dayKey)) as string | null
+  const usedSec = Number(usedRaw ?? 0)
 
   if (usedSec >= DAILY_LIMIT_S) {
     const hLeft = Math.ceil((DAILY_LIMIT_S - usedSec + DAILY_LIMIT_S) / 3600)
@@ -160,9 +160,9 @@ export async function releaseSession(ip: string, sessionId: string, startedAtMs:
   const dur = Math.max(0, Math.min(raw, 24 * 60 * 60))
   const dayKey = keyDailySeconds(ip)
 
-  const active = await redis.get(keyActiveSession(ip))
+  const active = (await redis.get(keyActiveSession(ip))) as string | null
   // Only release and charge if this exact session still owns the key.
-  if (active && active.startsWith(`${sessionId}:`)) {
+  if (active && typeof active === 'string' && active.startsWith(`${sessionId}:`)) {
     await redis.del(keyActiveSession(ip))
     if (dur > 0) {
       await redis.incrby(dayKey, dur)
@@ -178,8 +178,8 @@ export async function releaseSession(ip: string, sessionId: string, startedAtMs:
  * charging the user's daily quota.
  */
 export async function unclaimSession(ip: string, sessionId: string): Promise<void> {
-  const active = await redis.get(keyActiveSession(ip))
-  if (active && active.startsWith(`${sessionId}:`)) {
+  const active = (await redis.get(keyActiveSession(ip))) as string | null
+  if (active && typeof active === 'string' && active.startsWith(`${sessionId}:`)) {
     await redis.del(keyActiveSession(ip))
   }
 }

@@ -15,59 +15,47 @@ The React Compiler is not enabled on this template because of its impact on dev 
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-```js
+````js
 export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+  # FairArena — Client (React + TypeScript)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+  This folder contains the frontend for FairArena - Curl Tester. It is built with
+  React 19 + TypeScript, Vite, and TailwindCSS. The quick-start below is all you
+  need to run the client locally during development.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+  ## Quick Start
+
+  Install dependencies and run the dev server (HMR via Vite):
+
+  ```bash
+  cd client
+  pnpm install
+  pnpm run dev
+````
+
+By default the dev server proxies `/api/*` and `/terminal` to `http://localhost:4000`.
+
+## Build for Production
+
+```bash
+pnpm run build
+pnpm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `VITE_API_URL` — URL of the backend API (set in Vercel or `.env.local` for local tests)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Lint & Type-Check
+
+```bash
+pnpm run lint
+npx tsc --noEmit
 ```
+
+## Notes
+
+- Keep components small and well-typed. Use `zod` in the client only for
+  improved UX validation; server-side validation remains authoritative.
+- See the top-level `README.md` for deployment and architecture details.
+  // Enable lint rules for React DOM
