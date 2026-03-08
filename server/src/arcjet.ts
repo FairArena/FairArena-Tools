@@ -18,6 +18,31 @@ if (!process.env.ARCJET_KEY) {
   throw new Error('ARCJET_KEY is not defined in the environment variables.');
 }
 
+// Function to get client IP, handling proxies and containers
+function getClientIP(req: any): string {
+  // In production, try X-Forwarded-For first (common for proxies/load balancers)
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    // X-Forwarded-For can be a comma-separated list, take the first (original client)
+    const ips = forwarded.split(',').map((ip: string) => ip.trim());
+    return ips[0];
+  }
+
+  // Fallback to X-Real-IP (used by some proxies)
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    return realIp;
+  }
+
+  // Fallback to req.ip (set by Express trust proxy)
+  if (req.ip) {
+    return req.ip;
+  }
+
+  // Last resort: remote address
+  return req.connection?.remoteAddress || req.socket?.remoteAddress || '127.0.0.1';
+}
+
 export const aj = arcjet({
   key: process.env.ARCJET_KEY,
   characteristics: ['ip.src'],
@@ -74,6 +99,6 @@ export const formRateLimiter = {
         },
       } as Awaited<ReturnType<typeof baseFormRateLimiter.protect>>;
     }
-    return baseFormRateLimiter.protect(req, options);
+    return baseFormRateLimiter.protect(req, { ...options, getClientIP: () => getClientIP(req) } as any);
   },
 };

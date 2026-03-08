@@ -20,6 +20,9 @@ importers:
       '@xterm/xterm':
         specifier: ^5.5.0
         version: 5.5.0
+      analytics:
+        specifier: link:@vercel\analytics
+        version: link:@vercel/analytics
       lucide-react:
         specifier: ^0.525.0
         version: 0.525.0(react@19.2.4)

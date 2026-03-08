@@ -15,6 +15,32 @@
 import { NextFunction, Request, Response } from 'express';
 import { aj } from './arcjet.js';
 
+// Function to get client IP, handling proxies and containers
+function getClientIP(req: Request): string {
+  // In production, try X-Forwarded-For first (common for proxies/load balancers)
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    // X-Forwarded-For can be a comma-separated list, take the first (original client)
+    const forwardedStr = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    const ips = forwardedStr.split(',').map((ip: string) => ip.trim());
+    return ips[0];
+  }
+
+  // Fallback to X-Real-IP (used by some proxies)
+  const realIp = req.headers['x-real-ip'];
+  if (realIp && typeof realIp === 'string') {
+    return realIp;
+  }
+
+  // Fallback to req.ip (set by Express trust proxy)
+  if (req.ip) {
+    return req.ip;
+  }
+
+  // Last resort: remote address
+  return req.connection?.remoteAddress || req.socket?.remoteAddress || '127.0.0.1';
+}
+
 export const arcjetMiddleware = async (req: Request, res: Response, next: NextFunction) => {
 
   if (
@@ -24,7 +50,7 @@ export const arcjetMiddleware = async (req: Request, res: Response, next: NextFu
   }
 
   try {
-    const decision = await aj.protect(req, { requested: 1 });
+    const decision = await aj.protect(req, { requested: 1, getClientIP: () => getClientIP(req) } as any);
 
     if (decision.isDenied()) {
       if (decision.reason.isRateLimit()) {

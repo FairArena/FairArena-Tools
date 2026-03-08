@@ -7,6 +7,7 @@ import { API_BASE } from './hooks/useTerminalSession.js';
 import React from 'react';
 const DnsInspector = React.lazy(() => import('./components/DnsInspector.js'));
 import type { OsImage } from './types/index.js';
+import { Analytics } from "@vercel/analytics/react";
 
 type Tab = 'terminal' | 'api' | 'webhook' | 'dns';
 
@@ -68,6 +69,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-dvh bg-surface-950">
+      <Analytics/>
       <Navbar activeTab={tab} onTabChange={setTab} />
 
       {/* Subtle radial gradient backdrop */}

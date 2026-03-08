@@ -24,6 +24,12 @@ FROM node:22-alpine AS runner
 # Non-root user for security
 RUN addgroup -S fairarena && adduser -S fairarena -G fairarena
 
+# Install Docker CLI for container management
+RUN apk add --no-cache docker-cli
+
+# Add user to docker group for socket access
+RUN addgroup -S docker && addgroup fairarena docker
+
 WORKDIR /app
 
 # Copy compiled output and production node_modules
