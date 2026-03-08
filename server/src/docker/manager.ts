@@ -287,6 +287,10 @@ async function spawnDockerPty(
 
     // Writable scratch space only
     '--tmpfs=/tmp:rw,nosuid,nodev,exec,size=64m',
+    // Provide a writable home for an unprivileged UID (mode=1777 ensures
+    // world-writable tmpfs so the numeric UID can write its home without
+    // modifying the image's read-only root filesystem).
+    '--tmpfs=/home/sandbox:rw,exec,mode=1777,size=64m',
     '--tmpfs=/run:rw,nosuid,nodev,exec,size=8m',
 
     // Network isolation: external DNS only, no internal resolution
@@ -300,10 +304,20 @@ async function spawnDockerPty(
     '-e', 'TERM=xterm-256color',
     '-e', 'LANG=C.UTF-8',
     '-e', 'LC_ALL=C.UTF-8',
+    // Force HOME into writable tmpfs. Set a simple PS1; the shell will be
+    // started as numeric UID 1000 so users won't get a root prompt.
+    '-e', 'HOME=/home/sandbox',
     '-e', 'PS1=\\[\\033[01;32m\\]\\u@fairarena\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ ',
 
+    // Run the process as a non-root numeric UID to avoid granting root
+    // privileges even when the image lacks a pre-created unprivileged user.
+    '--user=1000:1000',
+
     image,
-    shell,
+    // Use an explicit full path for the shell command to avoid relying on
+    // the image's PATH resolution from the CLI. Map common sh/bash tokens
+    // to their usual absolute locations.
+    (shell.startsWith('/') ? shell : (shell === 'bash' ? '/bin/bash' : (shell === 'sh' ? '/bin/sh' : `/${shell}`))),
   ]
 
   const spawnFile = isWindows ? 'docker.exe' : 'docker'
