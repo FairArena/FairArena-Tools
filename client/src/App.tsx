@@ -3,13 +3,14 @@ import { Navbar } from './components/Navbar.js';
 import { TerminalPane } from './components/TerminalPane.js';
 import { ApiTester } from './components/ApiTester.js';
 import { WebhookDumper } from './components/WebhookDumper.js';
+import { Guide } from './components/Guide.js';
 import { API_BASE } from './hooks/useTerminalSession.js';
 import React from 'react';
 const DnsInspector = React.lazy(() => import('./components/DnsInspector.js'));
 import type { OsImage } from './types/index.js';
 import { Analytics } from "@vercel/analytics/react";
 
-type Tab = 'terminal' | 'api' | 'webhook' | 'dns';
+type Tab = 'terminal' | 'api' | 'webhook' | 'dns' | 'guide';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('terminal');
@@ -89,6 +90,8 @@ export default function App() {
             <ApiTester />
           ) : tab === 'webhook' ? (
             <WebhookDumper />
+          ) : tab === 'guide' ? (
+            <Guide />
           ) : (
             // DNS inspector
             // Lazy-load to avoid increasing bundle for unrelated flows

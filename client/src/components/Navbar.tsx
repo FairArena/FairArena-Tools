@@ -1,8 +1,8 @@
 import { Zap } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'terminal' | 'api' | 'webhook' | 'dns';
-  onTabChange: (tab: 'terminal' | 'api' | 'webhook' | 'dns') => void;
+  activeTab: 'terminal' | 'api' | 'webhook' | 'dns' | 'guide';
+  onTabChange: (tab: 'terminal' | 'api' | 'webhook' | 'dns' | 'guide') => void;
 }
 
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
@@ -46,6 +46,12 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
             icon={<DnsIcon />}
             active={activeTab === 'dns'}
             onClick={() => onTabChange('dns')}
+          />
+          <TabButton
+            label="Guide"
+            icon={<GuideIcon />}
+            active={activeTab === 'guide'}
+            onClick={() => onTabChange('guide')}
           />
         </nav>
 
@@ -136,6 +142,15 @@ function DnsIcon() {
       <path d="M4 18h4" />
       <path d="M16 18h4" />
       <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function GuideIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </svg>
   );
 }

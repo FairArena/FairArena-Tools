@@ -70,22 +70,31 @@ export function isDockerAvailable(): boolean {
 }
 
 /**
- * On startup, remove any fairarena-* containers left over from a previous
- * crash so we don't accumulate ghost containers.
+ * Periodically clean up any running containers that match our naming pattern
+ * but are not tracked in the active sessions map. This prevents accumulation
+ * of orphaned containers due to crashes or bugs.
  */
-export function cleanupOrphanContainers(): void {
+function cleanupStaleContainers(): void {
   try {
     const raw = execSync(
-      'docker ps -a --filter "name=fairarena-" --format "{{.Names}}"',
+      'docker ps --filter "name=fairarena-" --format "{{.Names}}"',
       { encoding: 'utf8', timeout: 10_000 },
     ).trim()
     if (!raw) return
-    for (const name of raw.split('\n').map((n) => n.trim()).filter(Boolean)) {
-      destroyContainer(name)
-      console.log(`[manager] removed orphan container: ${name}`)
+    const runningNames = raw.split('\n').map((n) => n.trim()).filter(Boolean)
+    for (const name of runningNames) {
+      // Extract sessionId from name: fairarena-{sessionId}
+      const sessionId = name.replace('fairarena-', '')
+      if (!sessions.has(sessionId)) {
+        console.log(`[manager] cleaning stale container: ${name}`)
+        destroyContainer(name)
+      }
     }
-  } catch { /* docker might not be available */ }
+  } catch { /* docker might not be available or command failed */ }
 }
+
+// Run cleanup every 5 minutes
+setInterval(cleanupStaleContainers, 5 * 60 * 1000).unref()
 
 /**
  * Destroy every live session – used during graceful shutdown.
@@ -260,7 +269,7 @@ async function spawnDockerPty(
    * Hardened sandbox flags:
    *  - drop ALL Linux capabilities, no new privileges (cannot escape to root)
    *  - memory, CPU, PID, and ulimit caps (cannot starve the host)
-   *  - read-only root FS with a small rw tmpfs for /tmp only
+   *  - read-only root FS with selective rw tmpfs for /tmp, /home, /run, /var
    *  - external-only DNS so containers cannot resolve private RFC-1918 names
    *  - no process.env leakage — only the bare minimum env is passed in
    */
@@ -269,16 +278,16 @@ async function spawnDockerPty(
     '--rm',
     '-it',
     `--name=${containerName}`,
+    `--hostname=fairarena`,
 
     // Resource limits
     '--memory=256m',
-    '--memory-swap=256m',       // no extra swap on top of the 256 m
+    '--memory-swap=256m',
     '--cpus=0.5',
     '--pids-limit=64',
     '--ulimit', 'nproc=64:64',
     '--ulimit', 'nofile=256:256',
     '--ulimit', 'fsize=20971520:20971520', // 20 MB max file write
-    '--stop-timeout=5',
 
     // Privilege hardening
     '--cap-drop=ALL',
@@ -286,12 +295,13 @@ async function spawnDockerPty(
     '--read-only',
 
     // Writable scratch space only
-    '--tmpfs=/tmp:rw,nosuid,nodev,exec,size=64m',
+    '--tmpfs=/tmp:rw,nosuid,nodev,noexec,size=64m',
     // Provide a writable home for an unprivileged UID (mode=1777 ensures
     // world-writable tmpfs so the numeric UID can write its home without
     // modifying the image's read-only root filesystem).
-    '--tmpfs=/home/sandbox:rw,exec,mode=1777,size=64m',
-    '--tmpfs=/run:rw,nosuid,nodev,exec,size=8m',
+    '--tmpfs=/home/sandbox:rw,nosuid,noexec,mode=1777,size=64m',
+    '--tmpfs=/run:rw,nosuid,nodev,noexec,size=8m',
+    '--tmpfs=/var:rw,nosuid,nodev,noexec,size=128m',
 
     // Network isolation: external DNS only, no internal resolution
     '--network=bridge',
@@ -317,7 +327,13 @@ async function spawnDockerPty(
     // Use an explicit full path for the shell command to avoid relying on
     // the image's PATH resolution from the CLI. Map common sh/bash tokens
     // to their usual absolute locations.
-    (shell.startsWith('/') ? shell : (shell === 'bash' ? '/bin/bash' : (shell === 'sh' ? '/bin/sh' : `/${shell}`))),
+    (() => {
+      const shellMap: Record<string, string> = {
+        bash: '/bin/bash', sh: '/bin/sh', zsh: '/bin/zsh',
+        fish: '/usr/bin/fish', dash: '/bin/dash',
+      }
+      return shell.startsWith('/') ? shell : (shellMap[shell] ?? `/bin/${shell}`)
+    })(),
   ]
 
   const spawnFile = isWindows ? 'docker.exe' : 'docker'
@@ -334,8 +350,8 @@ async function spawnDockerPty(
     env: hostEnv,
   })
 
-  const dataHandlers: Array<(data: string) => void> = []
-  const exitHandlers: Array<(info: { exitCode: number }) => void> = []
+  const dataHandlers: Set<(data: string) => void> = new Set()
+  const exitHandlers: Set<(info: { exitCode: number }) => void> = new Set()
 
   ptyProcess.onData((data) => dataHandlers.forEach((h) => h(data)))
   ptyProcess.onExit((info) => exitHandlers.forEach((h) => h(info)))
@@ -344,7 +360,7 @@ async function spawnDockerPty(
     write:   (data)       => ptyProcess.write(data),
     resize:  (cols, rows) => ptyProcess.resize(cols, rows),
     kill:    ()           => { try { ptyProcess.kill() } catch { /* already dead */ } },
-    onData:  (cb)         => dataHandlers.push(cb),
-    onExit:  (cb)         => exitHandlers.push(cb),
+    onData:  (cb)         => dataHandlers.add(cb),
+    onExit:  (cb)         => exitHandlers.add(cb),
   }
 }
