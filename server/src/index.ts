@@ -169,18 +169,58 @@ const domainSchema = z.object({
     .string()
     .min(1)
     .transform((s) => s.trim()),
-  types: z.array(z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'ALL'])).optional(),
+  types: z.array(z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'SRV', 'PTR', 'CAA', 'DNSKEY', 'DS', 'ALL'])).optional(),
+  resolver: z.string().optional(),
 });
 
-async function performDnsLookups(domain: string, types?: string[]) {
+async function performDnsLookups(domain: string, types?: string[], resolver?: string) {
   const out: Record<string, unknown> = {};
+  const resolverOptions = resolver ? { server: resolver } : {};
+
   const doResolve = async (t: string) => {
     try {
-      if (t === 'A') out.A = await dns.promises.resolve4(domain);
-      else if (t === 'AAAA') out.AAAA = await dns.promises.resolve6(domain);
+      if (t === 'A') out.A = await dns.promises.resolve4(domain, resolverOptions);
+      else if (t === 'AAAA') out.AAAA = await dns.promises.resolve6(domain, resolverOptions);
       else if (t === 'CNAME') out.CNAME = await dns.promises.resolveCname(domain);
       else if (t === 'MX') out.MX = await dns.promises.resolveMx(domain);
       else if (t === 'TXT') out.TXT = await dns.promises.resolveTxt(domain);
+      else if (t === 'NS') out.NS = await dns.promises.resolveNs(domain);
+      else if (t === 'SOA') out.SOA = await dns.promises.resolveSoa(domain);
+      else if (t === 'SRV') {
+        // SRV records need service._protocol.domain format
+        // For now, try common services
+        const services = ['_http._tcp', '_https._tcp', '_sip._tcp', '_sip._udp', '_xmpp-client._tcp'];
+        const srvResults: any[] = [];
+        for (const service of services) {
+          try {
+            const records = await dns.promises.resolveSrv(`${service}.${domain}`);
+            srvResults.push(...records.map(r => ({ ...r, service })));
+          } catch {}
+        }
+        out.SRV = srvResults.length > 0 ? srvResults : [];
+      }
+      else if (t === 'PTR') {
+        // For PTR, we need an IP address
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
+          const reversed = domain.split('.').reverse().join('.') + '.in-addr.arpa';
+          out.PTR = await dns.promises.resolvePtr(reversed);
+        } else {
+          out.PTR = { error: 'PTR lookups require an IP address' };
+        }
+      }
+      else if (t === 'CAA') {
+        try {
+          // CAA records might not be supported in all Node.js versions
+          const records = await dns.promises.resolveCaa(domain);
+          out.CAA = records;
+        } catch (err) {
+          out.CAA = { error: 'CAA records not supported or not found' };
+        }
+      }
+      else if (t === 'DNSKEY' || t === 'DS') {
+        // DNSSEC records - these might require additional libraries
+        out[t] = { error: 'DNSSEC records require special handling' };
+      }
     } catch (err) {
       out[t] = { error: (err as Error).message };
     }
@@ -668,7 +708,54 @@ app.post('/api/request/run', curlLimiter, async (req, res) => {
   }
 });
 
-// ---- DNS lookup endpoint --------------------------------------------------
+// ---- DNS propagation checker endpoint --------------------------------------
+app.post('/api/dns/propagation', dnsLimiter, async (req, res) => {
+  try {
+    const payload = z.object({
+      domain: z.string().min(1).transform((s) => s.trim()),
+      types: z.array(z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'SRV', 'PTR', 'CAA', 'DNSKEY', 'DS', 'ALL'])).optional(),
+    }).parse(req.body);
+
+    let domain = payload.domain;
+    try {
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(domain) || domain.includes('/')) {
+        const u = new URL(domain);
+        domain = u.hostname;
+      }
+    } catch {}
+
+    if (/^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/i.test(domain)) {
+      return res.status(400).json({ error: 'Private or loopback hosts are not allowed.' });
+    }
+
+    const resolvers = [
+      { name: 'Google', server: '8.8.8.8' },
+      { name: 'Cloudflare', server: '1.1.1.1' },
+      { name: 'Quad9', server: '9.9.9.9' },
+      { name: 'OpenDNS', server: '208.67.222.222' },
+    ];
+
+    const results: Record<string, any> = {};
+    const types = payload.types || ['A'];
+
+    for (const resolver of resolvers) {
+      try {
+        const result = await performDnsLookups(domain, types, resolver.server);
+        results[resolver.name] = { server: resolver.server, data: result };
+      } catch (err) {
+        results[resolver.name] = { server: resolver.server, error: (err as Error).message };
+      }
+    }
+
+    return res.json({ domain, types, results });
+  } catch (err) {
+    if (err instanceof z.ZodError)
+      return res.status(400).json({ error: err.errors.map((e) => e.message).join('; ') });
+    return res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// ---- DNS resolve endpoint ---------------------------------------------------
 app.post('/api/dns/resolve', dnsLimiter, async (req, res) => {
   try {
     const payload = domainSchema.parse(req.body);
@@ -689,13 +776,13 @@ app.post('/api/dns/resolve', dnsLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Private or loopback hosts are not allowed.' });
     }
 
-    const cacheKey = `${domain}:${(payload.types || []).join(',')}`;
+    const cacheKey = `${domain}:${(payload.types || []).join(',')}:${payload.resolver || 'default'}`;
     const cached = dnsCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < DNS_CACHE_TTL_MS) {
       return res.json({ cached: true, fromCache: true, data: cached.result });
     }
 
-    const result = await performDnsLookups(domain, payload.types);
+    const result = await performDnsLookups(domain, payload.types, payload.resolver);
     dnsCache.set(cacheKey, { ts: Date.now(), result });
     return res.json({ cached: false, data: result });
   } catch (err) {

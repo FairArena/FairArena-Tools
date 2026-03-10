@@ -478,6 +478,273 @@ function buildPayload(req: ApiRequest) {
   return { headers, body, params };
 }
 
+// ---- Code Generation Functions -----------------------------------------------
+
+function generateJavaScript(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `fetch('${url}', {\n`;
+  code += `  method: '${method}'`;
+
+  if (hasHeaders) {
+    code += `,\n  headers: {\n`;
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `    '${key}': '${value}',\n`;
+    });
+    code = code.slice(0, -2); // Remove last comma and newline
+    code += `\n  }`;
+  }
+
+  if (hasBody) {
+    code += `,\n  body: ${JSON.stringify(body)}`;
+  }
+
+  code += `\n})\n  .then(response => response.json())\n  .then(data => console.log(data))\n  .catch(error => console.error('Error:', error));`;
+
+  return code;
+}
+
+function generatePython(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `import requests\n\n`;
+  code += `url = '${url}'\n`;
+
+  if (hasHeaders) {
+    code += `headers = {\n`;
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `    '${key}': '${value}',\n`;
+    });
+    code = code.slice(0, -2); // Remove last comma and newline
+    code += `\n}\n\n`;
+  } else {
+    code += `\n`;
+  }
+
+  if (hasBody) {
+    code += `data = ${JSON.stringify(body)}\n\n`;
+  }
+
+  code += `response = requests.${method.toLowerCase()}(url`;
+
+  if (hasHeaders) {
+    code += `, headers=headers`;
+  }
+
+  if (hasBody) {
+    code += `, data=data`;
+  }
+
+  code += `)\n\nprint(response.json())`;
+
+  return code;
+}
+
+function generatePHP(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `<?php\n\n`;
+  code += `$url = '${url}';\n`;
+  code += `$method = '${method}';\n\n`;
+
+  if (hasHeaders) {
+    code += `$headers = array(\n`;
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `    '${key}: ${value}',\n`;
+    });
+    code = code.slice(0, -2); // Remove last comma and newline
+    code += `\n);\n\n`;
+  }
+
+  if (hasBody) {
+    code += `$data = ${JSON.stringify(body)};\n\n`;
+  }
+
+  code += `$ch = curl_init($url);\n`;
+  code += `curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\n`;
+  code += `curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);\n`;
+
+  if (hasHeaders) {
+    code += `curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);\n`;
+  }
+
+  if (hasBody) {
+    code += `curl_setopt($ch, CURLOPT_POSTFIELDS, $data);\n`;
+  }
+
+  code += `\n$response = curl_exec($ch);\n`;
+  code += `curl_close($ch);\n\n`;
+  code += `echo $response;\n`;
+
+  return code;
+}
+
+function generateRuby(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `require 'net/http'\nrequire 'json'\n\n`;
+  code += `uri = URI('${url}')\n`;
+  code += `http = Net::HTTP.new(uri.host, uri.port)\n`;
+  code += `http.use_ssl = true if uri.scheme == 'https'\n\n`;
+
+  code += `request = Net::HTTP::${method.charAt(0).toUpperCase() + method.slice(1).toLowerCase()}.new(uri)\n`;
+
+  if (hasHeaders) {
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `request['${key}'] = '${value}'\n`;
+    });
+    code += `\n`;
+  }
+
+  if (hasBody) {
+    code += `request.body = ${JSON.stringify(body)}\n\n`;
+  }
+
+  code += `response = http.request(request)\n`;
+  code += `puts response.body\n`;
+
+  return code;
+}
+
+function generateGo(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `package main\n\n`;
+  code += `import (\n`;
+  code += `    "bytes"\n`;
+  code += `    "fmt"\n`;
+  code += `    "io/ioutil"\n`;
+  code += `    "net/http"\n`;
+  code += `)\n\n`;
+  code += `func main() {\n`;
+  code += `    url := "${url}"\n`;
+
+  if (hasBody) {
+    code += `    payload := []byte(\`${body}\`)\n`;
+  }
+
+  code += `    req, err := http.NewRequest("${method}", url, `;
+
+  if (hasBody) {
+    code += `bytes.NewBuffer(payload)`;
+  } else {
+    code += `nil`;
+  }
+
+  code += `)\n`;
+  code += `    if err != nil {\n`;
+  code += `        fmt.Println(err)\n`;
+  code += `        return\n`;
+  code += `    }\n\n`;
+
+  if (hasHeaders) {
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `    req.Header.Set("${key}", "${value}")\n`;
+    });
+    code += `\n`;
+  }
+
+  code += `    client := &http.Client{}\n`;
+  code += `    resp, err := client.Do(req)\n`;
+  code += `    if err != nil {\n`;
+  code += `        fmt.Println(err)\n`;
+  code += `        return\n`;
+  code += `    }\n`;
+  code += `    defer resp.Body.Close()\n\n`;
+  code += `    body, err := ioutil.ReadAll(resp.Body)\n`;
+  code += `    if err != nil {\n`;
+  code += `        fmt.Println(err)\n`;
+  code += `        return\n`;
+  code += `    }\n\n`;
+  code += `    fmt.Println(string(body))\n`;
+  code += `}\n`;
+
+  return code;
+}
+
+function generateJava(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `import java.io.IOException;\n`;
+  code += `import java.net.URI;\n`;
+  code += `import java.net.http.HttpClient;\n`;
+  code += `import java.net.http.HttpRequest;\n`;
+  code += `import java.net.http.HttpResponse;\n\n`;
+  code += `public class ApiRequest {\n`;
+  code += `    public static void main(String[] args) throws IOException, InterruptedException {\n`;
+  code += `        HttpClient client = HttpClient.newHttpClient();\n`;
+  code += `        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()\n`;
+  code += `            .uri(URI.create("${url}"));\n\n`;
+
+  if (hasHeaders) {
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `        requestBuilder.header("${key}", "${value}");\n`;
+    });
+    code += `\n`;
+  }
+
+  if (hasBody) {
+    code += `        HttpRequest request = requestBuilder\n`;
+    code += `            .method("${method}", HttpRequest.BodyPublishers.ofString(${JSON.stringify(body)}))\n`;
+    code += `            .build();\n`;
+  } else {
+    code += `        HttpRequest request = requestBuilder\n`;
+    code += `            .method("${method}", HttpRequest.BodyPublishers.noBody())\n`;
+    code += `            .build();\n`;
+  }
+
+  code += `\n`;
+  code += `        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());\n`;
+  code += `        System.out.println(response.body());\n`;
+  code += `    }\n`;
+  code += `}\n`;
+
+  return code;
+}
+
+function generateCSharp(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+  const hasHeaders = Object.keys(headers).length > 0;
+  const hasBody = body && body.trim();
+
+  let code = `using System;\n`;
+  code += `using System.Net.Http;\n`;
+  code += `using System.Threading.Tasks;\n\n`;
+  code += `class Program\n`;
+  code += `{\n`;
+  code += `    static async Task Main(string[] args)\n`;
+  code += `    {\n`;
+  code += `        using (HttpClient client = new HttpClient())\n`;
+  code += `        {\n`;
+
+  if (hasHeaders) {
+    Object.entries(headers).forEach(([key, value]) => {
+      code += `            client.DefaultRequestHeaders.Add("${key}", "${value}");\n`;
+    });
+    code += `\n`;
+  }
+
+  if (hasBody) {
+    code += `            var content = new StringContent(${JSON.stringify(body)}, System.Text.Encoding.UTF8, "application/json");\n`;
+    code += `            var response = await client.${method}Async("${url}", content);\n`;
+  } else {
+    code += `            var response = await client.${method}Async("${url}");\n`;
+  }
+
+  code += `            var responseString = await response.Content.ReadAsStringAsync();\n`;
+  code += `            Console.WriteLine(responseString);\n`;
+  code += `        }\n`;
+  code += `    }\n`;
+  code += `}\n`;
+
+  return code;
+}
+
 // ---- localStorage history ----------------------------------------------------
 
 function loadHistory(): HistoryEntry[] {
@@ -490,7 +757,9 @@ function loadHistory(): HistoryEntry[] {
 function saveHistory(h: HistoryEntry[]) {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-MAX_HISTORY)));
-  } catch {}
+  } catch {
+    console.warn('Failed to save history');
+  }
 }
 
 // ---- Shared components -------------------------------------------------------
@@ -619,17 +888,19 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
-        active
-          ? 'border-brand-500 text-brand-400'
-          : 'border-transparent text-slate-500 hover:text-slate-300'
+      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all duration-300 border-b-2 -mb-px relative group rounded-t-lg ${active
+        ? 'border-brand-500 text-brand-400 bg-gradient-to-b from-brand-500/10 to-transparent shadow-sm'
+        : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-700/30 hover:shadow-md'
       }`}
     >
       {label}
       {badge !== undefined && badge > 0 && (
-        <span className="px-1.5 py-0.5 text-[10px] bg-brand-500/20 text-brand-400 rounded-full leading-none">
+        <span className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none transition-all duration-200 group-hover:scale-110 ${active ? 'bg-brand-500/30 text-brand-300' : 'bg-slate-600 text-slate-300'}`}>
           {badge}
         </span>
+      )}
+      {!active && (
+        <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-brand-500 to-indigo-500 transition-all duration-300 group-hover:w-full rounded-full" />
       )}
     </button>
   );
@@ -950,6 +1221,7 @@ function WebhookPanel() {
       setEvents([]);
       setSelectedEvent(null);
     } catch {
+      console.warn('Failed to create webhook');
     } finally {
       setLoading(false);
     }
@@ -977,7 +1249,9 @@ function WebhookPanel() {
       try {
         const { event } = JSON.parse(e.data) as { event: WebhookEvent };
         setEvents((prev) => [...prev, event]);
-      } catch {}
+      } catch {
+        console.warn('Invalid event data, skipping');
+      }
     };
     return () => {
       es.close();
@@ -1157,6 +1431,8 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [bodyFormat, setBodyFormat] = useState<'pretty' | 'raw'>('pretty');
+  const [bodySearch, setBodySearch] = useState('');
+  const [showLineNumbers, setShowLineNumbers] = useState(false);
 
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
@@ -1213,6 +1489,51 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
     if (isXml) return formatXml(response.bodyRaw);
     if (isHtml) return highlightHtml(response.bodyRaw);
     return response.bodyRaw;
+  };
+
+  const renderBodyContent = () => {
+    let content = getFormattedBody();
+
+    // Apply syntax highlighting
+    if (isJson) content = highlightJson(content);
+    else if (isXml) content = highlightXml(content);
+    else if (isHtml) content = highlightHtml(content);
+
+    // Apply search highlighting
+    if (bodySearch) {
+      const regex = new RegExp(`(${bodySearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      content = content.replace(regex, '<mark class="bg-yellow-500/30 text-yellow-200">$1</mark>');
+    }
+
+    const lines = content.split('\n');
+
+    if (showLineNumbers) {
+      return (
+        <div className="flex font-mono text-xs leading-relaxed p-4">
+          <div className="pr-4 text-slate-500 select-none border-r border-slate-700/50 mr-4">
+            {lines.map((_, i) => (
+              <div key={i} className="text-right pr-2 py-0.5">
+                {i + 1}
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 overflow-auto">
+            {lines.map((line, i) => (
+              <div key={i} className="py-0.5 whitespace-pre-wrap break-all">
+                <span dangerouslySetInnerHTML={{ __html: line || ' ' }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <pre
+        className="p-4 text-xs font-mono leading-relaxed overflow-auto whitespace-pre-wrap break-all"
+        dangerouslySetInnerHTML={{ __html: content }}
+      />
+    );
   };
 
   const downloadBody = () => {
@@ -1371,21 +1692,30 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
         </div>
       )}
 
-      <div className="flex-1 overflow-auto min-h-0 rounded-xl bg-slate-900/70 border border-slate-700/40">
-        {tab === 'body' && (
-          <pre
-            className="p-4 text-xs font-mono leading-relaxed overflow-auto whitespace-pre-wrap break-all"
-            dangerouslySetInnerHTML={{
-              __html: isJson
-                ? highlightJson(getFormattedBody())
-                : isXml
-                  ? highlightXml(getFormattedBody())
-                  : isHtml
-                    ? highlightHtml(getFormattedBody())
-                    : getFormattedBody(),
-            }}
+      {/* Body search and options */}
+      {tab === 'body' && (
+        <div className="mb-3 flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search in response..."
+            value={bodySearch}
+            onChange={(e) => setBodySearch(e.target.value)}
+            className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500/60"
           />
-        )}
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            <input
+              type="checkbox"
+              checked={showLineNumbers}
+              onChange={(e) => setShowLineNumbers(e.target.checked)}
+              className="w-3.5 h-3.5 rounded accent-brand-500"
+            />
+            Line numbers
+          </label>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto min-h-0 rounded-xl bg-slate-900/70 border border-slate-700/40">
+        {tab === 'body' && renderBodyContent()}
         {tab === 'headers' && (
           <div className="divide-y divide-slate-800">
             {filteredHeaders.map(([k, v]) => (
@@ -1612,9 +1942,108 @@ function HistorySidebar({
   );
 }
 
+// ---- Code Generation Panel ---------------------------------------------------
+
+function CodeGenerationPanel({ request }: { request: ApiRequest }) {
+  const [selectedLanguage, setSelectedLanguage] = useState('javascript');
+  const [generatedCode, setGeneratedCode] = useState('');
+
+  const languages = [
+    { id: 'javascript', name: 'JavaScript', icon: '🟨' },
+    { id: 'python', name: 'Python', icon: '🐍' },
+    { id: 'curl', name: 'cURL', icon: '📡' },
+    { id: 'php', name: 'PHP', icon: '🐘' },
+    { id: 'ruby', name: 'Ruby', icon: '💎' },
+    { id: 'go', name: 'Go', icon: '🐹' },
+    { id: 'java', name: 'Java', icon: '☕' },
+    { id: 'csharp', name: 'C#', icon: '🔷' },
+  ];
+
+  useEffect(() => {
+    setGeneratedCode(generateCode(request, selectedLanguage));
+  }, [request, selectedLanguage]);
+
+  const generateCode = (req: ApiRequest, lang: string): string => {
+    const url = buildUrl(req);
+    const { headers, body } = buildPayload(req);
+
+    switch (lang) {
+      case 'javascript':
+        return generateJavaScript(url, req.method, headers, body);
+      case 'python':
+        return generatePython(url, req.method, headers, body);
+      case 'curl':
+        return buildCurl(req);
+      case 'php':
+        return generatePHP(url, req.method, headers, body);
+      case 'ruby':
+        return generateRuby(url, req.method, headers, body);
+      case 'go':
+        return generateGo(url, req.method, headers, body);
+      case 'java':
+        return generateJava(url, req.method, headers, body);
+      case 'csharp':
+        return generateCSharp(url, req.method, headers, body);
+      default:
+        return '';
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(generatedCode);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
+          Generate Code
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+          {languages.map((lang) => (
+            <button
+              key={lang.id}
+              onClick={() => setSelectedLanguage(lang.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+                selectedLanguage === lang.id
+                  ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-lg shadow-brand-500/25 ring-2 ring-brand-400/50'
+                  : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-700 hover:border-slate-600 hover:shadow-md'
+              }`}
+            >
+              <span className="text-base">{lang.icon}</span>
+              {lang.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            Generated Code
+          </p>
+          <button
+            onClick={copyToClipboard}
+            className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 rounded text-xs font-medium transition-all duration-200 border border-slate-700 hover:border-slate-600 hover:shadow-md"
+          >
+            <Copy className="w-3 h-3 transition-transform duration-200 group-hover:scale-110" />
+            Copy
+          </button>
+        </div>
+        <div className="relative group">
+          <pre className="p-4 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl text-sm font-mono text-slate-300 whitespace-pre-wrap break-all overflow-x-auto max-h-96 overflow-y-auto border border-slate-700/50 shadow-inner transition-all duration-300 group-hover:border-slate-600/50 group-hover:shadow-lg">
+            {generatedCode}
+          </pre>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-slate-900/10 rounded-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---- Main Component ----------------------------------------------------------
 
-type ReqTab = 'params' | 'headers' | 'auth' | 'body' | 'curl' | 'webhook';
+type ReqTab = 'params' | 'headers' | 'auth' | 'body' | 'curl' | 'code' | 'webhook';
 
 export function ApiTester() {
   const [request, setRequest] = useState<ApiRequest>(freshRequest);
@@ -1650,7 +2079,9 @@ export function ApiTester() {
           const u = new URL(url.includes('://') ? url : `https://${url}`);
           Object.entries(params).forEach(([k, v]) => u.searchParams.append(k, v));
           url = u.toString();
-        } catch {}
+        } catch {
+          console.warn('Invalid URL, skipping param merging');
+        }
       }
 
       const res = await fetch(API_BASE + '/api/request/run', {
@@ -1850,7 +2281,7 @@ export function ApiTester() {
             <input
               value={requestName}
               onChange={(e) => setRequestName(e.target.value)}
-              className="w-full bg-transparent text-xs text-slate-500 hover:text-slate-300 focus:text-slate-200 focus:outline-none mb-2 transition-colors"
+              className="w-full bg-transparent text-xs text-slate-500 hover:text-slate-300 focus:text-slate-200 focus:outline-none mb-2 transition-colors placeholder-slate-600"
               placeholder="Request name..."
             />
 
@@ -1860,13 +2291,13 @@ export function ApiTester() {
               <div className="relative shrink-0">
                 <button
                   onClick={() => setShowMethod(!showMethod)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold font-mono transition-all ${METHOD_COLORS[request.method]}`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold font-mono transition-all duration-200 hover:shadow-md ${METHOD_COLORS[request.method]}`}
                 >
                   {request.method}
-                  <ChevronDown className="w-3 h-3" />
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showMethod ? 'rotate-180' : ''}`} />
                 </button>
                 {showMethod && (
-                  <div className="absolute top-full mt-1 left-0 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 py-1 min-w-[110px]">
+                  <div className="absolute top-full mt-1 left-0 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-xl shadow-2xl z-30 py-1 min-w-[110px] animate-in slide-in-from-top-2 duration-200">
                     {HTTP_METHODS.map((m) => (
                       <button
                         key={m}
@@ -1874,7 +2305,7 @@ export function ApiTester() {
                           setField('method', m);
                           setShowMethod(false);
                         }}
-                        className={`w-full text-left px-3 py-1.5 text-sm font-bold font-mono hover:bg-slate-800 transition-colors ${request.method === m ? 'text-white' : 'text-slate-400'}`}
+                        className={`w-full text-left px-3 py-1.5 text-sm font-bold font-mono hover:bg-slate-800 transition-all duration-150 hover:translate-x-1 ${request.method === m ? 'text-white bg-slate-800' : 'text-slate-400'}`}
                       >
                         {m}
                       </button>
@@ -1896,19 +2327,19 @@ export function ApiTester() {
                 onChange={(e) => setField('url', e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="https://api.example.com/v1/endpoint"
-                className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-brand-500/60 transition-colors"
+                className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200 hover:bg-slate-800/70"
               />
 
               {/* Send button */}
               <button
                 onClick={handleSend}
                 disabled={loading || !request.url.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-brand-600/20 shrink-0"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-brand-600/20 hover:shadow-xl hover:shadow-brand-600/30 transform hover:scale-105 active:scale-95 shrink-0"
               >
                 {loading ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                 )}
                 {loading ? 'Sending...' : 'Send'}
               </button>
@@ -1949,6 +2380,11 @@ export function ApiTester() {
                 label="cURL"
                 active={activeTab === 'curl'}
                 onClick={() => setActiveTab('curl')}
+              />
+              <Tab
+                label="Code"
+                active={activeTab === 'code'}
+                onClick={() => setActiveTab('code')}
               />
               <Tab
                 label="Webhook"
@@ -2013,34 +2449,63 @@ export function ApiTester() {
                   </div>
                 </div>
               )}
+              {activeTab === 'code' && (
+                <CodeGenerationPanel request={request} />
+              )}
               {activeTab === 'webhook' && <WebhookPanel />}
             </div>
           </div>
 
           {/* RIGHT: Response */}
           <div className="flex flex-col bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 min-h-0">
-            <h2 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3 shrink-0">
-              Response
-            </h2>
+            <div className="flex items-center gap-2 mb-3 shrink-0">
+              <h2 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                Response
+              </h2>
+              {response && (
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${response.status >= 200 && response.status < 300 ? 'bg-green-500/20 text-green-400' : response.status >= 400 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                    {response.status}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {response.headers['content-length'] ? `${(parseInt(response.headers['content-length']) / 1024).toFixed(1)} KB` : ''}
+                  </span>
+                </div>
+              )}
+            </div>
 
             {error && (
-              <div className="mb-3 flex items-start gap-2.5 p-3 bg-red-500/10 border border-red-500/30 rounded-xl shrink-0">
-                <XCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-300">{error}</p>
+              <div className="mb-3 flex items-start gap-2.5 p-4 bg-gradient-to-r from-red-500/10 to-red-600/5 border border-red-500/30 rounded-xl shrink-0 animate-in slide-in-from-top-2 duration-300">
+                <div className="p-1 rounded-full bg-red-500/20">
+                  <XCircle className="w-4 h-4 text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-300 mb-1">Request Failed</p>
+                  <p className="text-sm text-red-400/80">{error}</p>
+                </div>
               </div>
             )}
 
             {!response && !loading && !error && (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3">
-                <Send className="w-10 h-10 opacity-20" />
-                <p className="text-sm">Hit Send to see the response</p>
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3 animate-fade-in">
+                <div className="p-4 rounded-full bg-slate-800/30 animate-pulse">
+                  <Send className="w-8 h-8 opacity-40" />
+                </div>
+                <p className="text-sm font-medium">Ready to send your request</p>
+                <p className="text-xs text-slate-500">Enter a URL and click Send</p>
               </div>
             )}
 
             {loading && (
-              <div className="flex-1 flex items-center justify-center gap-3 text-slate-500">
-                <span className="w-5 h-5 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-                <span className="text-sm">Waiting for response...</span>
+              <div className="flex-1 flex items-center justify-center gap-3 text-slate-500 animate-fade-in">
+                <div className="relative">
+                  <span className="w-6 h-6 border-2 border-brand-500/20 border-t-brand-500 rounded-full animate-spin" />
+                  <div className="absolute inset-0 rounded-full bg-brand-500/10 animate-ping" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Sending request...</span>
+                  <span className="text-xs text-slate-600">Please wait</span>
+                </div>
               </div>
             )}
 

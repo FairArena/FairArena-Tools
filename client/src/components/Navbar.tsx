@@ -1,8 +1,8 @@
 import { Zap } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'terminal' | 'api' | 'webhook' | 'dns' | 'guide';
-  onTabChange: (tab: 'terminal' | 'api' | 'webhook' | 'dns' | 'guide') => void;
+  activeTab: 'terminal' | 'api' | 'dev-tools' | 'network' | 'encoders' | 'webhook' | 'guide';
+  onTabChange: (tab: 'terminal' | 'api' | 'dev-tools' | 'network' | 'encoders' | 'webhook' | 'guide') => void;
 }
 
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
@@ -35,17 +35,29 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
             onClick={() => onTabChange('api')}
           />
           <TabButton
+            label="Dev Tools"
+            icon={<DevToolsIcon />}
+            active={activeTab === 'dev-tools'}
+            onClick={() => onTabChange('dev-tools')}
+          />
+          <TabButton
+            label="Network"
+            icon={<NetworkIcon />}
+            active={activeTab === 'network'}
+            onClick={() => onTabChange('network')}
+          />
+          <TabButton
+            label="Encoders"
+            icon={<EncoderIcon />}
+            active={activeTab === 'encoders'}
+            onClick={() => onTabChange('encoders')}
+          />
+          <TabButton
             label="Webhooks"
             icon={<WebhookIcon />}
             active={activeTab === 'webhook'}
             onClick={() => onTabChange('webhook')}
             badge="NEW"
-          />
-          <TabButton
-            label="DNS"
-            icon={<DnsIcon />}
-            active={activeTab === 'dns'}
-            onClick={() => onTabChange('dns')}
           />
           <TabButton
             label="Guide"
@@ -132,16 +144,14 @@ function WebhookIcon() {
   );
 }
 
-function DnsIcon() {
+function EncoderIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path d="M12 2v4" />
-      <path d="M12 18v4" />
-      <path d="M4 6h4" />
-      <path d="M16 6h4" />
-      <path d="M4 18h4" />
-      <path d="M16 18h4" />
-      <circle cx="12" cy="12" r="3" />
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14,2 14,8 20,8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10,9 9,9 8,9" />
     </svg>
   );
 }
@@ -151,6 +161,24 @@ function GuideIcon() {
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  );
+}
+
+function DevToolsIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  );
+}
+
+function NetworkIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path d="M4 12a8 8 0 0 1 16 0v4a4 4 0 0 1-8 0v-4" />
+      <path d="M12 8v4" />
+      <circle cx="12" cy="16" r="2" />
     </svg>
   );
 }
