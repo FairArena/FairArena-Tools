@@ -3,25 +3,29 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies first (better layer caching)
+# Install pnpm
+RUN npm install -g pnpm@latest
+
+# Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install pnpm and project dependencies using the lockfile for reproducible builds
-RUN npm install -g pnpm@latest
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source and compile TypeScript
+# Copy source
 COPY tsconfig.json ./
 COPY src ./src
+
+# Build
 RUN pnpm run build
 
-# Prune dev-dependencies using pnpm
+# Prune dev dependencies
 RUN pnpm prune --prod
 
 # ── Stage 2: production image ─────────────────────────────────────────────────
 FROM node:22-slim AS runner
 
-# Install Docker CLI for container management
+# Install Docker CLI and curl (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     docker.io \
     curl \
@@ -30,13 +34,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy compiled output and production node_modules
-COPY --from=builder --chown=root:root /app/dist ./dist
-COPY --from=builder --chown=root:root /app/node_modules ./node_modules
-COPY --from=builder --chown=root:root /app/package.json ./
+# Create non-root user
+RUN groupadd -r fairarena -g 1001 && \
+    useradd -r -g fairarena -u 1001 fairarena
 
-# The server needs the Docker socket for spawning containers — mount it at runtime.
-# Docker CLI is included for container management.
+# Copy built app
+COPY --from=builder --chown=fairarena:fairarena /app/dist ./dist
+COPY --from=builder --chown=fairarena:fairarena /app/node_modules ./node_modules
+COPY --from=builder --chown=fairarena:fairarena /app/package.json ./
+
+# Switch to non-root user
+USER fairarena
 
 ENV NODE_ENV=production
 

@@ -70,6 +70,24 @@ export function isDockerAvailable(): boolean {
 }
 
 /**
+ * On startup, remove any fairarena-* containers left over from a previous
+ * crash so we don't accumulate ghost containers.
+ */
+export function cleanupOrphanContainers(): void {
+  try {
+    const raw = execSync(
+      'docker ps -a --filter "name=fairarena-" --format "{{.Names}}"',
+      { encoding: 'utf8', timeout: 10_000 },
+    ).trim()
+    if (!raw) return
+    for (const name of raw.split('\n').map((n) => n.trim()).filter(Boolean)) {
+      destroyContainer(name)
+      console.log(`[manager] removed orphan container: ${name}`)
+    }
+  } catch { /* docker might not be available */ }
+}
+
+/**
  * Periodically clean up any running containers that match our naming pattern
  * but are not tracked in the active sessions map. This prevents accumulation
  * of orphaned containers due to crashes or bugs.

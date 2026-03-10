@@ -112,17 +112,6 @@ app.use(
   }),
 );
 
-// Enforce HTTPS in production (redirect HTTP -> HTTPS)
-if (NODE_ENV === 'production') {
-  app.use((req, res, next) => {
-    const proto = req.headers['x-forwarded-proto'] || (req as any).protocol
-    if (typeof proto === 'string' && proto.split(',')[0].trim() === 'http') {
-      const host = req.headers.host
-      return res.redirect(301, `https://${host}${req.url}`)
-    }
-    next()
-  })
-}
 app.use(
   cors({
     origin: (origin, cb) => {

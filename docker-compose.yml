@@ -24,9 +24,11 @@ services:
       - .env
     volumes:
       # Docker socket — required for spawning sandbox containers.
-      # The server runs as a non-root user; grant socket access with:
+      # The server runs as user 1001; grant socket access with:
       #   sudo setfacl -m user:1001:rw /var/run/docker.sock
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 512m
+    mem_reservation: 256m
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
       interval: 30s
