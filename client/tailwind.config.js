@@ -28,7 +28,7 @@ export default {
 
         // project palettes
         surface: {
-          50:  '#f8fafc',
+          50: '#f8fafc',
           100: '#f1f5f9',
           800: '#0f172a',
           850: '#0c1526',
@@ -48,9 +48,12 @@ export default {
       },
       keyframes: {
         fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
-        slideUp: { from: { opacity: '0', transform: 'translateY(8px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        slideUp: {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
       },
     },
   },
   plugins: [],
-}
+};

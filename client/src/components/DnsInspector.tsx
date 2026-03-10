@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { API_BASE } from '../hooks/useTerminalSession.js';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Clock, Search, Globe, Trash2, Download, Share, AlertCircle, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Clock,
+  Search,
+  Globe,
+  Trash2,
+  Download,
+  Share,
+  AlertCircle,
+  CheckCircle,
+} from 'lucide-react';
 
 type HistoryItem = { domain: string; types: string[]; resolver?: string; ts: number; result?: any };
 
@@ -73,10 +82,13 @@ export const DnsInspector: React.FC = () => {
   }, [domain, types, useCustomResolver, customResolver]);
 
   // Avoid overwriting storage on first render (read happens in previous effect)
-  const firstWriteRef = React.useRef(true)
+  const firstWriteRef = React.useRef(true);
   useEffect(() => {
     try {
-      if (firstWriteRef.current) { firstWriteRef.current = false; return }
+      if (firstWriteRef.current) {
+        firstWriteRef.current = false;
+        return;
+      }
       localStorage.setItem('dns-history', JSON.stringify(history.slice(0, 50)));
     } catch {}
   }, [history]);
@@ -166,17 +178,21 @@ export const DnsInspector: React.FC = () => {
   const analyzeSpfDmarc = (txtRecords: string[]) => {
     const analysis: string[] = [];
 
-    txtRecords.forEach(record => {
+    txtRecords.forEach((record) => {
       const lower = record.toLowerCase();
       if (lower.startsWith('v=spf1')) {
         analysis.push(`SPF Record: ${record}`);
         if (lower.includes('v=spf1')) {
           analysis.push('  ✓ Valid SPF record');
-          const includes = (record.match(/include:([^\s]+)/g) || []).map((inc: string) => inc.replace('include:', ''));
+          const includes = (record.match(/include:([^\s]+)/g) || []).map((inc: string) =>
+            inc.replace('include:', ''),
+          );
           if (includes.length > 0) {
             analysis.push(`  Includes: ${includes.join(', ')}`);
           }
-          const mechanisms = record.split(' ').filter(part => !part.startsWith('v=') && part !== '');
+          const mechanisms = record
+            .split(' ')
+            .filter((part) => !part.startsWith('v=') && part !== '');
           analysis.push(`  Mechanisms: ${mechanisms.join(', ')}`);
         } else {
           analysis.push('  ✗ Invalid SPF record');
@@ -206,7 +222,11 @@ export const DnsInspector: React.FC = () => {
       }
     });
 
-    setSpfDmarcAnalysis(analysis.length > 0 ? analysis.join('\n') : 'No SPF, DMARC, or DKIM records found in TXT records.');
+    setSpfDmarcAnalysis(
+      analysis.length > 0
+        ? analysis.join('\n')
+        : 'No SPF, DMARC, or DKIM records found in TXT records.',
+    );
   };
 
   const exportResults = () => {
@@ -250,12 +270,7 @@ export const DnsInspector: React.FC = () => {
                 <Clock className="h-4 w-4" />
                 History
               </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearHistory}
-                title="Clear history"
-              >
+              <Button variant="ghost" size="sm" onClick={clearHistory} title="Clear history">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -289,7 +304,10 @@ export const DnsInspector: React.FC = () => {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                          {new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(h.ts).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </div>
                       </div>
                     </Button>
@@ -310,12 +328,18 @@ export const DnsInspector: React.FC = () => {
               </div>
               <div>
                 <CardTitle>DNS Inspector</CardTitle>
-                <p className="text-muted-foreground text-sm">Query DNS records and check global propagation</p>
+                <p className="text-muted-foreground text-sm">
+                  Query DNS records and check global propagation
+                </p>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'lookup' | 'propagation')} className="w-full">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as 'lookup' | 'propagation')}
+              className="w-full"
+            >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="lookup" className="flex items-center gap-2">
                   <Search className="h-4 w-4" />
@@ -389,11 +413,13 @@ export const DnsInspector: React.FC = () => {
                               if (checked) {
                                 setTypes([...types, t]);
                               } else {
-                                setTypes(types.filter(type => type !== t));
+                                setTypes(types.filter((type) => type !== t));
                               }
                             }}
                           />
-                          <Label htmlFor={`type-${t}`} className="text-sm">{t}</Label>
+                          <Label htmlFor={`type-${t}`} className="text-sm">
+                            {t}
+                          </Label>
                         </div>
                       ))}
                     </div>
@@ -443,11 +469,13 @@ export const DnsInspector: React.FC = () => {
                               if (checked) {
                                 setTypes([...types, t]);
                               } else {
-                                setTypes(types.filter(type => type !== t));
+                                setTypes(types.filter((type) => type !== t));
                               }
                             }}
                           />
-                          <Label htmlFor={`prop-type-${t}`} className="text-sm">{t}</Label>
+                          <Label htmlFor={`prop-type-${t}`} className="text-sm">
+                            {t}
+                          </Label>
                         </div>
                       ))}
                     </div>
@@ -466,10 +494,7 @@ export const DnsInspector: React.FC = () => {
                 <Download className="h-4 w-4 mr-2" />
                 Export JSON
               </Button>
-              <Button
-                variant="outline"
-                onClick={copyShareableLink}
-              >
+              <Button variant="outline" onClick={copyShareableLink}>
                 <Share className="h-4 w-4 mr-2" />
                 Share Link
               </Button>
@@ -510,9 +535,7 @@ export const DnsInspector: React.FC = () => {
                                   Analyze SPF/DMARC
                                 </Button>
                               )}
-                              {v === undefined && (
-                                <Badge variant="secondary">Not requested</Badge>
-                              )}
+                              {v === undefined && <Badge variant="secondary">Not requested</Badge>}
                             </div>
                           </CardHeader>
                           <CardContent>
@@ -528,8 +551,13 @@ export const DnsInspector: React.FC = () => {
                             {Array.isArray(v) && v.length > 0 && (
                               <div className="space-y-2">
                                 {v.map((item: any, i: number) => (
-                                  <div key={i} className="text-sm font-mono bg-muted p-2 rounded border">
-                                    {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
+                                  <div
+                                    key={i}
+                                    className="text-sm font-mono bg-muted p-2 rounded border"
+                                  >
+                                    {typeof item === 'object'
+                                      ? JSON.stringify(item, null, 2)
+                                      : String(item)}
                                   </div>
                                 ))}
                               </div>
@@ -549,35 +577,43 @@ export const DnsInspector: React.FC = () => {
                     Global propagation check across multiple DNS servers
                   </div>
                   <div className="grid gap-3">
-                    {Object.entries(propagationResult.results).map(([resolverName, check]: [string, any]) => (
-                      <Card key={resolverName}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm">{resolverName}</CardTitle>
-                            <Badge variant="outline">{check.server}</Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          {check.error ? (
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>{check.error}</AlertDescription>
-                            </Alert>
-                          ) : (
-                            <div className="space-y-2">
-                              {Object.entries(check.data || {}).map(([type, records]: [string, any]) => (
-                                <div key={type} className="flex items-start gap-2">
-                                  <span className="text-muted-foreground text-xs font-medium min-w-[3rem]">{type}:</span>
-                                  <span className="text-sm font-mono bg-muted p-1 rounded border flex-1">
-                                    {Array.isArray(records) ? records.join(', ') : String(records)}
-                                  </span>
-                                </div>
-                              ))}
+                    {Object.entries(propagationResult.results).map(
+                      ([resolverName, check]: [string, any]) => (
+                        <Card key={resolverName}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm">{resolverName}</CardTitle>
+                              <Badge variant="outline">{check.server}</Badge>
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardHeader>
+                          <CardContent>
+                            {check.error ? (
+                              <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>{check.error}</AlertDescription>
+                              </Alert>
+                            ) : (
+                              <div className="space-y-2">
+                                {Object.entries(check.data || {}).map(
+                                  ([type, records]: [string, any]) => (
+                                    <div key={type} className="flex items-start gap-2">
+                                      <span className="text-muted-foreground text-xs font-medium min-w-[3rem]">
+                                        {type}:
+                                      </span>
+                                      <span className="text-sm font-mono bg-muted p-1 rounded border flex-1">
+                                        {Array.isArray(records)
+                                          ? records.join(', ')
+                                          : String(records)}
+                                      </span>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ),
+                    )}
                   </div>
                 </div>
               )}
@@ -592,7 +628,9 @@ export const DnsInspector: React.FC = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <pre className="text-sm whitespace-pre-wrap font-mono bg-muted p-3 rounded border">{spfDmarcAnalysis}</pre>
+                    <pre className="text-sm whitespace-pre-wrap font-mono bg-muted p-3 rounded border">
+                      {spfDmarcAnalysis}
+                    </pre>
                   </CardContent>
                 </Card>
               )}

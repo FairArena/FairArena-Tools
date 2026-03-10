@@ -39,7 +39,7 @@ export const JwtDecoder: React.FC = () => {
           signature: parts[2] || '',
           valid: false,
           expired: false,
-          errors
+          errors,
         });
         return;
       }
@@ -75,9 +75,8 @@ export const JwtDecoder: React.FC = () => {
         signature: parts[2],
         valid: errors.length === 0,
         expired,
-        errors
+        errors,
       });
-
     } catch (e) {
       setDecoded({
         header: null,
@@ -85,7 +84,7 @@ export const JwtDecoder: React.FC = () => {
         signature: '',
         valid: false,
         expired: false,
-        errors: ['Failed to parse JWT token']
+        errors: ['Failed to parse JWT token'],
       });
     }
   };
@@ -125,7 +124,9 @@ export const JwtDecoder: React.FC = () => {
             </div>
             <div>
               <CardTitle>JWT Decoder</CardTitle>
-              <p className="text-slate-400 text-sm">Decode and inspect JWT tokens without validation</p>
+              <p className="text-slate-400 text-sm">
+                Decode and inspect JWT tokens without validation
+              </p>
             </div>
           </div>
         </CardHeader>
@@ -173,13 +174,16 @@ export const JwtDecoder: React.FC = () => {
               <Tabs defaultValue="payload">
                 <TabsList className="w-full">
                   <TabsTrigger value="header" className="flex-1 flex items-center gap-1.5">
-                    <Code2 className="w-3.5 h-3.5" />Header
+                    <Code2 className="w-3.5 h-3.5" />
+                    Header
                   </TabsTrigger>
                   <TabsTrigger value="payload" className="flex-1 flex items-center gap-1.5">
-                    <Package className="w-3.5 h-3.5" />Payload
+                    <Package className="w-3.5 h-3.5" />
+                    Payload
                   </TabsTrigger>
                   <TabsTrigger value="signature" className="flex-1 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5" />Signature
+                    <Shield className="w-3.5 h-3.5" />
+                    Signature
                   </TabsTrigger>
                 </TabsList>
 
@@ -187,8 +191,13 @@ export const JwtDecoder: React.FC = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-white font-semibold">Header</h4>
-                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(formatJSON(decoded.header))}>
-                        <Copy className="w-3.5 h-3.5 mr-1.5" />Copy JSON
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(formatJSON(decoded.header))}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1.5" />
+                        Copy JSON
                       </Button>
                     </div>
                     <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/30">
@@ -203,8 +212,13 @@ export const JwtDecoder: React.FC = () => {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-white font-semibold">Payload</h4>
-                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(formatJSON(decoded.payload))}>
-                        <Copy className="w-3.5 h-3.5 mr-1.5" />Copy JSON
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(formatJSON(decoded.payload))}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1.5" />
+                        Copy JSON
                       </Button>
                     </div>
 
@@ -222,42 +236,66 @@ export const JwtDecoder: React.FC = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {decoded.payload.iss && (
                               <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/30">
-                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">Issuer (iss)</span>
-                                <div className="text-white font-mono text-sm mt-1 break-all">{decoded.payload.iss}</div>
+                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                                  Issuer (iss)
+                                </span>
+                                <div className="text-white font-mono text-sm mt-1 break-all">
+                                  {decoded.payload.iss}
+                                </div>
                               </div>
                             )}
                             {decoded.payload.sub && (
                               <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/30">
-                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">Subject (sub)</span>
-                                <div className="text-white font-mono text-sm mt-1 break-all">{decoded.payload.sub}</div>
+                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                                  Subject (sub)
+                                </span>
+                                <div className="text-white font-mono text-sm mt-1 break-all">
+                                  {decoded.payload.sub}
+                                </div>
                               </div>
                             )}
                             {decoded.payload.aud && (
                               <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/30">
-                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">Audience (aud)</span>
+                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                                  Audience (aud)
+                                </span>
                                 <div className="text-white font-mono text-sm mt-1 break-all">
-                                  {Array.isArray(decoded.payload.aud) ? decoded.payload.aud.join(', ') : decoded.payload.aud}
+                                  {Array.isArray(decoded.payload.aud)
+                                    ? decoded.payload.aud.join(', ')
+                                    : decoded.payload.aud}
                                 </div>
                               </div>
                             )}
                             {decoded.payload.exp && (
                               <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/30">
-                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">Expires (exp)</span>
-                                <div className={`font-mono text-sm mt-1 ${decoded.expired ? 'text-red-400' : 'text-green-400'}`}>
+                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                                  Expires (exp)
+                                </span>
+                                <div
+                                  className={`font-mono text-sm mt-1 ${decoded.expired ? 'text-red-400' : 'text-green-400'}`}
+                                >
                                   {formatTimestamp(decoded.payload.exp)}
                                 </div>
                               </div>
                             )}
                             {decoded.payload.iat && (
                               <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/30">
-                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">Issued At (iat)</span>
-                                <div className="text-white font-mono text-sm mt-1">{formatTimestamp(decoded.payload.iat)}</div>
+                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                                  Issued At (iat)
+                                </span>
+                                <div className="text-white font-mono text-sm mt-1">
+                                  {formatTimestamp(decoded.payload.iat)}
+                                </div>
                               </div>
                             )}
                             {decoded.payload.nbf && (
                               <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/30">
-                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">Not Before (nbf)</span>
-                                <div className="text-white font-mono text-sm mt-1">{formatTimestamp(decoded.payload.nbf)}</div>
+                                <span className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                                  Not Before (nbf)
+                                </span>
+                                <div className="text-white font-mono text-sm mt-1">
+                                  {formatTimestamp(decoded.payload.nbf)}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -271,8 +309,13 @@ export const JwtDecoder: React.FC = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-white font-semibold">Signature</h4>
-                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(decoded.signature)}>
-                        <Copy className="w-3.5 h-3.5 mr-1.5" />Copy
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(decoded.signature)}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1.5" />
+                        Copy
                       </Button>
                     </div>
                     <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/30">
@@ -283,12 +326,13 @@ export const JwtDecoder: React.FC = () => {
                     <Alert>
                       <Shield className="h-4 w-4" />
                       <AlertDescription>
-                        <strong>Security Note:</strong> This tool only decodes the JWT structure and does not validate the cryptographic signature. Always verify signatures using appropriate JWT libraries in your application code.
+                        <strong>Security Note:</strong> This tool only decodes the JWT structure and
+                        does not validate the cryptographic signature. Always verify signatures
+                        using appropriate JWT libraries in your application code.
                       </AlertDescription>
                     </Alert>
                   </div>
                 </TabsContent>
-
               </Tabs>
             </div>
           )}

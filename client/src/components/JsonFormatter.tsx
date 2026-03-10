@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Copy, FileText, Minimize, Image, AlertCircle } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { Textarea } from './ui/textarea';
@@ -43,9 +49,11 @@ export const JsonFormatter: React.FC = () => {
     if (Array.isArray(obj)) return obj.map(sortObjectKeys);
 
     const sorted: any = {};
-    Object.keys(obj).sort().forEach(key => {
-      sorted[key] = sortObjectKeys(obj[key]);
-    });
+    Object.keys(obj)
+      .sort()
+      .forEach((key) => {
+        sorted[key] = sortObjectKeys(obj[key]);
+      });
     return sorted;
   };
 
@@ -69,16 +77,16 @@ export const JsonFormatter: React.FC = () => {
 
   const loadExample = () => {
     const example = {
-      name: "John Doe",
+      name: 'John Doe',
       age: 30,
-      email: "john@example.com",
+      email: 'john@example.com',
       address: {
-        street: "123 Main St",
-        city: "Anytown",
-        zipCode: "12345"
+        street: '123 Main St',
+        city: 'Anytown',
+        zipCode: '12345',
       },
-      hobbies: ["reading", "coding", "gaming"],
-      active: true
+      hobbies: ['reading', 'coding', 'gaming'],
+      active: true,
     };
     setInput(JSON.stringify(example, null, 2));
   };
@@ -102,7 +110,10 @@ export const JsonFormatter: React.FC = () => {
           <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
             <div className="space-y-2">
               <label className="block text-sm text-slate-300 font-medium">Indent Size</label>
-              <Select value={indentSize.toString()} onValueChange={(value) => setIndentSize(Number(value))}>
+              <Select
+                value={indentSize.toString()}
+                onValueChange={(value) => setIndentSize(Number(value))}
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -192,48 +203,66 @@ export const JsonFormatter: React.FC = () => {
             </div>
           </div>
 
-        {/* Error Display */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>JSON Parse Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          {/* Error Display */}
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>JSON Parse Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* Statistics */}
-        {output && !error && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                JSON Statistics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                  <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">Characters</span>
-                  <div className="text-white text-lg font-semibold mt-1">{output.length.toLocaleString()}</div>
-                </div>
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                  <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">Lines</span>
-                  <div className="text-white text-lg font-semibold mt-1">{output.split('\n').length}</div>
-                </div>
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                  <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">Minified Size</span>
-                  <div className="text-white text-lg font-semibold mt-1">{JSON.stringify(JSON.parse(input)).length} chars</div>
-                </div>
-                <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                  <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">Compression</span>
-                  <div className="text-green-400 text-lg font-semibold mt-1">
-                    {((1 - JSON.stringify(JSON.parse(input)).length / output.length) * 100).toFixed(1)}%
+          {/* Statistics */}
+          {output && !error && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  JSON Statistics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
+                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                      Characters
+                    </span>
+                    <div className="text-white text-lg font-semibold mt-1">
+                      {output.length.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
+                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                      Lines
+                    </span>
+                    <div className="text-white text-lg font-semibold mt-1">
+                      {output.split('\n').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
+                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                      Minified Size
+                    </span>
+                    <div className="text-white text-lg font-semibold mt-1">
+                      {JSON.stringify(JSON.parse(input)).length} chars
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
+                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                      Compression
+                    </span>
+                    <div className="text-green-400 text-lg font-semibold mt-1">
+                      {(
+                        (1 - JSON.stringify(JSON.parse(input)).length / output.length) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, Hash, AlertTriangle } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
@@ -50,7 +56,7 @@ export const HashGenerator: React.FC = () => {
       }
 
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
       setOutput(uppercase ? hashHex.toUpperCase() : hashHex);
     } catch {
       setOutput('Error generating hash');
@@ -63,14 +69,14 @@ export const HashGenerator: React.FC = () => {
     let hash = 0;
     for (let i = 0; i < data.length; i++) {
       const char = data[i];
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     // Convert to 16-byte array (MD5 produces 128 bits)
     const result = new ArrayBuffer(16);
     const view = new DataView(result);
     for (let i = 0; i < 16; i++) {
-      view.setUint8(i, (hash >>> (i * 8)) & 0xFF);
+      view.setUint8(i, (hash >>> (i * 8)) & 0xff);
     }
     return result;
   };
@@ -111,12 +117,15 @@ export const HashGenerator: React.FC = () => {
           <div className="flex flex-wrap gap-4">
             <div className="space-y-2">
               <Label htmlFor="algorithm">Algorithm</Label>
-              <Select value={algorithm} onValueChange={(value) => setAlgorithm(value as HashAlgorithm)}>
+              <Select
+                value={algorithm}
+                onValueChange={(value) => setAlgorithm(value as HashAlgorithm)}
+              >
                 <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {algorithms.map(algo => (
+                  {algorithms.map((algo) => (
                     <SelectItem key={algo.value} value={algo.value}>
                       {algo.label}
                     </SelectItem>
@@ -145,10 +154,10 @@ export const HashGenerator: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
               <h4 className="font-semibold mb-2">
-                {algorithms.find(a => a.value === algorithm)?.label}
+                {algorithms.find((a) => a.value === algorithm)?.label}
               </h4>
               <p className="text-sm text-muted-foreground">
-                {algorithms.find(a => a.value === algorithm)?.description}
+                {algorithms.find((a) => a.value === algorithm)?.description}
               </p>
             </CardContent>
           </Card>
@@ -205,16 +214,20 @@ export const HashGenerator: React.FC = () => {
             <AlertDescription>
               <div className="space-y-2">
                 <p>
-                  <strong>MD5 & SHA-1:</strong> These algorithms are cryptographically broken and should not be used for security purposes.
+                  <strong>MD5 & SHA-1:</strong> These algorithms are cryptographically broken and
+                  should not be used for security purposes.
                 </p>
                 <p>
-                  <strong>SHA-256:</strong> Recommended for most applications requiring cryptographic security.
+                  <strong>SHA-256:</strong> Recommended for most applications requiring
+                  cryptographic security.
                 </p>
                 <p>
-                  <strong>SHA-384 & SHA-512:</strong> Provide higher security but are slower to compute.
+                  <strong>SHA-384 & SHA-512:</strong> Provide higher security but are slower to
+                  compute.
                 </p>
                 <p className="text-yellow-600 dark:text-yellow-400">
-                  ⚠️ Never use hashes for password storage. Use proper password hashing algorithms like bcrypt, scrypt, or Argon2.
+                  ⚠️ Never use hashes for password storage. Use proper password hashing algorithms
+                  like bcrypt, scrypt, or Argon2.
                 </p>
               </div>
             </AlertDescription>

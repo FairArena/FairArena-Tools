@@ -10,7 +10,9 @@ import { Radio, Plug, PlugZap, Trash2, AlertCircle } from 'lucide-react';
 
 export const SSEListener: React.FC = () => {
   const [url, setUrl] = useState('');
-  const [events, setEvents] = useState<Array<{id: string, type: string, data: string, timestamp: number}>>([]);
+  const [events, setEvents] = useState<
+    Array<{ id: string; type: string; data: string; timestamp: number }>
+  >([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -41,9 +43,9 @@ export const SSEListener: React.FC = () => {
           id: event.lastEventId || `event-${Date.now()}`,
           type: event.type || 'message',
           data: event.data,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
-        setEvents(prev => [...prev, newEvent]);
+        setEvents((prev) => [...prev, newEvent]);
       };
 
       eventSource.onerror = (_event) => {
@@ -58,11 +60,10 @@ export const SSEListener: React.FC = () => {
           id: event.lastEventId || `ping-${Date.now()}`,
           type: 'ping',
           data: event.data || 'ping',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
-        setEvents(prev => [...prev, newEvent]);
+        setEvents((prev) => [...prev, newEvent]);
       });
-
     } catch (err) {
       setError('Failed to create EventSource connection');
       setIsConnected(false);
@@ -123,11 +124,13 @@ export const SSEListener: React.FC = () => {
             <div className="flex gap-2">
               {!isConnected ? (
                 <Button onClick={connect} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
-                  <PlugZap className="w-4 h-4 mr-1.5" />Connect
+                  <PlugZap className="w-4 h-4 mr-1.5" />
+                  Connect
                 </Button>
               ) : (
                 <Button onClick={disconnect} variant="destructive" className="flex-1">
-                  <Plug className="w-4 h-4 mr-1.5" />Disconnect
+                  <Plug className="w-4 h-4 mr-1.5" />
+                  Disconnect
                 </Button>
               )}
               <Button variant="outline" size="icon" onClick={clearEvents} title="Clear events">
@@ -141,7 +144,9 @@ export const SSEListener: React.FC = () => {
                 checked={autoScroll}
                 onCheckedChange={(v) => setAutoScroll(v as boolean)}
               />
-              <Label htmlFor="autoscroll" className="font-normal text-sm">Auto-scroll to latest</Label>
+              <Label htmlFor="autoscroll" className="font-normal text-sm">
+                Auto-scroll to latest
+              </Label>
             </div>
 
             <div className="p-3 bg-slate-800/40 rounded-lg border border-slate-700/50 space-y-1 text-sm">
@@ -182,15 +187,26 @@ export const SSEListener: React.FC = () => {
               ) : (
                 <div className="space-y-2">
                   {events.map((event, index) => (
-                    <div key={`${event.id}-${index}`} className="bg-slate-800/40 border border-slate-700/30 p-3 rounded-lg">
+                    <div
+                      key={`${event.id}-${index}`}
+                      className="bg-slate-800/40 border border-slate-700/30 p-3 rounded-lg"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs font-mono">{event.type}</Badge>
-                          <span className="text-xs text-muted-foreground">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                          <Badge variant="secondary" className="text-xs font-mono">
+                            {event.type}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(event.timestamp).toLocaleTimeString()}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground font-mono">#{index + 1}</span>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          #{index + 1}
+                        </span>
                       </div>
-                      <div className="text-sm text-white font-mono whitespace-pre-wrap break-all">{event.data}</div>
+                      <div className="text-sm text-white font-mono whitespace-pre-wrap break-all">
+                        {event.data}
+                      </div>
                     </div>
                   ))}
                   <div ref={eventsEndRef} />

@@ -58,7 +58,6 @@ export const EmailSecurityChecker: React.FC = () => {
       // Analyze the records
       const analysis = analyzeEmailSecurity(txtRecords.flat());
       setResults(analysis);
-
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -69,7 +68,7 @@ export const EmailSecurityChecker: React.FC = () => {
   const analyzeEmailSecurity = (txtRecords: string[]): SecurityRecord[] => {
     const results: SecurityRecord[] = [];
 
-    txtRecords.forEach(record => {
+    txtRecords.forEach((record) => {
       const lower = record.toLowerCase();
 
       // SPF Analysis
@@ -82,8 +81,8 @@ export const EmailSecurityChecker: React.FC = () => {
             version: 'spf1',
             mechanisms: [],
             includes: [],
-            errors: []
-          }
+            errors: [],
+          },
         };
 
         // Parse mechanisms
@@ -113,8 +112,8 @@ export const EmailSecurityChecker: React.FC = () => {
           valid: true,
           details: {
             version: 'DMARC1',
-            errors: []
-          }
+            errors: [],
+          },
         };
 
         // Extract policy
@@ -155,8 +154,8 @@ export const EmailSecurityChecker: React.FC = () => {
           valid: true,
           details: {
             version: 'dkim1',
-            errors: []
-          }
+            errors: [],
+          },
         };
 
         // Extract selector from the domain we're checking
@@ -183,9 +182,9 @@ export const EmailSecurityChecker: React.FC = () => {
     if (results.length === 0) return 0;
 
     let score = 0;
-    const hasSPF = results.some(r => r.type === 'SPF' && r.valid);
-    const hasDMARC = results.some(r => r.type === 'DMARC' && r.valid);
-    const hasDKIM = results.some(r => r.type === 'DKIM' && r.valid);
+    const hasSPF = results.some((r) => r.type === 'SPF' && r.valid);
+    const hasDMARC = results.some((r) => r.type === 'DMARC' && r.valid);
+    const hasDKIM = results.some((r) => r.type === 'DKIM' && r.valid);
 
     if (hasSPF) score += 33;
     if (hasDMARC) score += 34;
@@ -204,7 +203,9 @@ export const EmailSecurityChecker: React.FC = () => {
             </div>
             <div>
               <CardTitle>Email Security Checker</CardTitle>
-              <p className="text-muted-foreground text-sm">Analyze SPF, DMARC, and DKIM records for a domain</p>
+              <p className="text-muted-foreground text-sm">
+                Analyze SPF, DMARC, and DKIM records for a domain
+              </p>
             </div>
           </div>
         </CardHeader>
@@ -251,7 +252,9 @@ export const EmailSecurityChecker: React.FC = () => {
                       style={{ width: `${getSecurityScore()}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Based on presence of valid SPF, DMARC, and DKIM records</p>
+                  <p className="text-xs text-muted-foreground">
+                    Based on presence of valid SPF, DMARC, and DKIM records
+                  </p>
                 </CardContent>
               </Card>
 
@@ -266,7 +269,10 @@ export const EmailSecurityChecker: React.FC = () => {
                         <XCircle className="w-5 h-5 text-red-400 shrink-0" />
                       )}
                       <h4 className="font-semibold">{result.type} Record</h4>
-                      <Badge variant={result.valid ? 'default' : 'destructive'} className="text-xs ml-auto">
+                      <Badge
+                        variant={result.valid ? 'default' : 'destructive'}
+                        className="text-xs ml-auto"
+                      >
                         {result.valid ? 'Valid' : 'Invalid'}
                       </Badge>
                     </div>
@@ -276,7 +282,12 @@ export const EmailSecurityChecker: React.FC = () => {
                       <div className="text-sm text-white font-mono break-all">{result.record}</div>
                     </div>
 
-                    {(result.details.policy || (result.details.includes?.length) || (result.details.mechanisms?.length) || result.details.rua || result.details.ruf || result.details.selector) && (
+                    {(result.details.policy ||
+                      result.details.includes?.length ||
+                      result.details.mechanisms?.length ||
+                      result.details.rua ||
+                      result.details.ruf ||
+                      result.details.selector) && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {result.details.policy && (
                           <div className="space-y-0.5">
@@ -287,13 +298,17 @@ export const EmailSecurityChecker: React.FC = () => {
                         {result.details.includes && result.details.includes.length > 0 && (
                           <div className="space-y-0.5">
                             <div className="text-xs text-muted-foreground">Includes</div>
-                            <div className="text-sm font-mono">{result.details.includes.join(', ')}</div>
+                            <div className="text-sm font-mono">
+                              {result.details.includes.join(', ')}
+                            </div>
                           </div>
                         )}
                         {result.details.mechanisms && result.details.mechanisms.length > 0 && (
                           <div className="space-y-0.5">
                             <div className="text-xs text-muted-foreground">Mechanisms</div>
-                            <div className="text-sm font-mono">{result.details.mechanisms.join(', ')}</div>
+                            <div className="text-sm font-mono">
+                              {result.details.mechanisms.join(', ')}
+                            </div>
                           </div>
                         )}
                         {result.details.rua && (
@@ -322,7 +337,9 @@ export const EmailSecurityChecker: React.FC = () => {
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>
                           <ul className="text-xs space-y-0.5">
-                            {result.details.errors.map((e, i) => <li key={i}>{e}</li>)}
+                            {result.details.errors.map((e, i) => (
+                              <li key={i}>{e}</li>
+                            ))}
                           </ul>
                         </AlertDescription>
                       </Alert>
@@ -336,32 +353,34 @@ export const EmailSecurityChecker: React.FC = () => {
                 <CardContent className="pt-6">
                   <h4 className="font-semibold mb-3">Recommendations</h4>
                   <div className="space-y-2 text-sm">
-                    {!results.some(r => r.type === 'SPF' && r.valid) && (
+                    {!results.some((r) => r.type === 'SPF' && r.valid) && (
                       <div className="flex items-start gap-2 text-red-400">
                         <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <span>Add an SPF record to prevent email spoofing</span>
                       </div>
                     )}
-                    {!results.some(r => r.type === 'DMARC' && r.valid) && (
+                    {!results.some((r) => r.type === 'DMARC' && r.valid) && (
                       <div className="flex items-start gap-2 text-yellow-400">
                         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                        <span>Add a DMARC record for better email authentication and reporting</span>
+                        <span>
+                          Add a DMARC record for better email authentication and reporting
+                        </span>
                       </div>
                     )}
-                    {!results.some(r => r.type === 'DKIM' && r.valid) && (
+                    {!results.some((r) => r.type === 'DKIM' && r.valid) && (
                       <div className="flex items-start gap-2 text-yellow-400">
                         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <span>Configure DKIM signing for your email domain</span>
                       </div>
                     )}
-                    {results.some(r => r.type === 'SPF' && r.valid) &&
-                     results.some(r => r.type === 'DMARC' && r.valid) &&
-                     results.some(r => r.type === 'DKIM' && r.valid) && (
-                      <div className="flex items-start gap-2 text-emerald-400">
-                        <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                        <span>Excellent! Your domain has comprehensive email security</span>
-                      </div>
-                    )}
+                    {results.some((r) => r.type === 'SPF' && r.valid) &&
+                      results.some((r) => r.type === 'DMARC' && r.valid) &&
+                      results.some((r) => r.type === 'DKIM' && r.valid) && (
+                        <div className="flex items-start gap-2 text-emerald-400">
+                          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                          <span>Excellent! Your domain has comprehensive email security</span>
+                        </div>
+                      )}
                   </div>
                 </CardContent>
               </Card>

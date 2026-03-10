@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -12,10 +18,12 @@ import { useToast } from './ToastProvider';
 type EncodingType = 'base64' | 'url' | 'hex' | 'binary';
 
 const ENCODING_INFO: Record<EncodingType, string> = {
-  base64: 'Base64 encoding converts binary data to a text format using 64 different ASCII characters. Commonly used for encoding data in URLs, cookies, and email attachments.',
+  base64:
+    'Base64 encoding converts binary data to a text format using 64 different ASCII characters. Commonly used for encoding data in URLs, cookies, and email attachments.',
   url: 'URL encoding (percent-encoding) replaces unsafe characters with %XX where XX is the hexadecimal value. Used to encode URLs and form data for safe transmission.',
   hex: 'Hexadecimal encoding represents each byte as two hexadecimal digits (00-FF). Commonly used for representing binary data in a human-readable format.',
-  binary: 'Binary encoding represents each character as its 8-bit binary equivalent. Shows the raw binary representation of text data.',
+  binary:
+    'Binary encoding represents each character as its 8-bit binary equivalent. Shows the raw binary representation of text data.',
 };
 
 export const EncoderDecoder: React.FC = () => {
@@ -45,10 +53,14 @@ export const EncoderDecoder: React.FC = () => {
             result = encodeURIComponent(text);
             break;
           case 'hex':
-            result = Array.from(text, char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+            result = Array.from(text, (char) =>
+              char.charCodeAt(0).toString(16).padStart(2, '0'),
+            ).join('');
             break;
           case 'binary':
-            result = Array.from(text, char => char.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
+            result = Array.from(text, (char) =>
+              char.charCodeAt(0).toString(2).padStart(8, '0'),
+            ).join(' ');
             break;
         }
       } else {
@@ -65,7 +77,11 @@ export const EncoderDecoder: React.FC = () => {
             if (!/^[0-9a-fA-F]+$/.test(cleanHex) || cleanHex.length % 2 !== 0) {
               throw new Error('Invalid hex string');
             }
-            result = cleanHex.match(/.{1,2}/g)?.map(byte => String.fromCharCode(parseInt(byte, 16))).join('') || '';
+            result =
+              cleanHex
+                .match(/.{1,2}/g)
+                ?.map((byte) => String.fromCharCode(parseInt(byte, 16)))
+                .join('') || '';
             break;
           case 'binary':
             // Remove spaces and validate
@@ -73,7 +89,11 @@ export const EncoderDecoder: React.FC = () => {
             if (!/^[01]+$/.test(cleanBinary) || cleanBinary.length % 8 !== 0) {
               throw new Error('Invalid binary string');
             }
-            result = cleanBinary.match(/.{8}/g)?.map(byte => String.fromCharCode(parseInt(byte, 2))).join('') || '';
+            result =
+              cleanBinary
+                .match(/.{8}/g)
+                ?.map((byte) => String.fromCharCode(parseInt(byte, 2)))
+                .join('') || '';
             break;
         }
       }
@@ -130,7 +150,9 @@ export const EncoderDecoder: React.FC = () => {
             </div>
             <div>
               <CardTitle>Encoder / Decoder</CardTitle>
-              <p className="text-muted-foreground text-sm">Encode and decode text in various formats</p>
+              <p className="text-muted-foreground text-sm">
+                Encode and decode text in various formats
+              </p>
             </div>
           </div>
         </CardHeader>
@@ -139,7 +161,10 @@ export const EncoderDecoder: React.FC = () => {
           <div className="flex flex-wrap items-end gap-4 p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
             <div className="space-y-2">
               <Label>Encoding Type</Label>
-              <Select value={encodingType} onValueChange={(v) => setEncodingType(v as EncodingType)}>
+              <Select
+                value={encodingType}
+                onValueChange={(v) => setEncodingType(v as EncodingType)}
+              >
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
@@ -164,13 +189,16 @@ export const EncoderDecoder: React.FC = () => {
 
             <div className="flex gap-2 ml-auto">
               <Button variant="outline" size="sm" onClick={swapMode} title="Swap input ↔ output">
-                <ArrowLeftRight className="w-4 h-4 mr-1.5" />Swap
+                <ArrowLeftRight className="w-4 h-4 mr-1.5" />
+                Swap
               </Button>
               <Button variant="outline" size="sm" onClick={loadExample}>
-                <Shuffle className="w-4 h-4 mr-1.5" />Example
+                <Shuffle className="w-4 h-4 mr-1.5" />
+                Example
               </Button>
               <Button variant="outline" size="sm" onClick={clearAll}>
-                <Trash2 className="w-4 h-4 mr-1.5" />Clear
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Clear
               </Button>
             </div>
           </div>
@@ -180,14 +208,24 @@ export const EncoderDecoder: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>{inputLabel}</Label>
-                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(input)} disabled={!input}>
-                  <Copy className="w-3.5 h-3.5 mr-1.5" />Copy
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(input)}
+                  disabled={!input}
+                >
+                  <Copy className="w-3.5 h-3.5 mr-1.5" />
+                  Copy
                 </Button>
               </div>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={mode === 'encode' ? 'Enter text to encode...' : `Enter ${encodingType} to decode...`}
+                placeholder={
+                  mode === 'encode'
+                    ? 'Enter text to encode...'
+                    : `Enter ${encodingType} to decode...`
+                }
                 className="font-mono text-sm h-48 resize-none"
               />
             </div>
@@ -195,8 +233,14 @@ export const EncoderDecoder: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>{outputLabel}</Label>
-                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(output)} disabled={!output}>
-                  <Copy className="w-3.5 h-3.5 mr-1.5" />Copy
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(output)}
+                  disabled={!output}
+                >
+                  <Copy className="w-3.5 h-3.5 mr-1.5" />
+                  Copy
                 </Button>
               </div>
               <Textarea

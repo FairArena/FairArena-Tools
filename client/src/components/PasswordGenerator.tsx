@@ -47,7 +47,10 @@ export const PasswordGenerator: React.FC = () => {
     if (opts.symbols) chars += charSets.symbols;
 
     if (opts.excludeSimilar) {
-      chars = chars.split('').filter(char => !charSets.similar.includes(char)).join('');
+      chars = chars
+        .split('')
+        .filter((char) => !charSets.similar.includes(char))
+        .join('');
     }
 
     if (!chars) return '';
@@ -60,7 +63,7 @@ export const PasswordGenerator: React.FC = () => {
     // Ensure at least one character from each selected set
     const ensureChar = (set: string, result: string): string => {
       if (!set) return result;
-      const hasChar = result.split('').some(char => set.includes(char));
+      const hasChar = result.split('').some((char) => set.includes(char));
       if (!hasChar) {
         const pos = Math.floor(Math.random() * result.length);
         const char = set.charAt(Math.floor(Math.random() * set.length));
@@ -156,31 +159,40 @@ export const PasswordGenerator: React.FC = () => {
                   min="4"
                   max="64"
                   value={options.length}
-                  onChange={(e) => setOptions(prev => ({ ...prev, length: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setOptions((prev) => ({ ...prev, length: Number(e.target.value) }))
+                  }
                   className="w-full accent-brand-500"
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>4</span><span>64</span>
+                  <span>4</span>
+                  <span>64</span>
                 </div>
               </div>
 
               <Separator />
 
               <div className="space-y-3">
-                {([
-                  ['uppercase', 'Include Uppercase (A–Z)'],
-                  ['lowercase', 'Include Lowercase (a–z)'],
-                  ['numbers',   'Include Numbers (0–9)'],
-                  ['symbols',   'Include Symbols (!@#$%^&*)'],
-                  ['excludeSimilar', 'Exclude Similar Characters (I, l, 1, O, 0)'],
-                ] as [keyof PasswordOptions, string][]).map(([key, lbl]) => (
+                {(
+                  [
+                    ['uppercase', 'Include Uppercase (A–Z)'],
+                    ['lowercase', 'Include Lowercase (a–z)'],
+                    ['numbers', 'Include Numbers (0–9)'],
+                    ['symbols', 'Include Symbols (!@#$%^&*)'],
+                    ['excludeSimilar', 'Exclude Similar Characters (I, l, 1, O, 0)'],
+                  ] as [keyof PasswordOptions, string][]
+                ).map(([key, lbl]) => (
                   <div key={key} className="flex items-center gap-2">
                     <Checkbox
                       id={key}
                       checked={options[key] as boolean}
-                      onCheckedChange={(v) => setOptions(prev => ({ ...prev, [key]: v as boolean }))}
+                      onCheckedChange={(v) =>
+                        setOptions((prev) => ({ ...prev, [key]: v as boolean }))
+                      }
                     />
-                    <Label htmlFor={key} className="font-normal">{lbl}</Label>
+                    <Label htmlFor={key} className="font-normal">
+                      {lbl}
+                    </Label>
                   </div>
                 ))}
               </div>
@@ -191,21 +203,38 @@ export const PasswordGenerator: React.FC = () => {
               <div className="space-y-2">
                 <Label>Generated Password</Label>
                 <div className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-lg font-mono text-base text-white break-all min-h-[60px] flex items-center">
-                  {password || <span className="text-muted-foreground text-sm">Click Generate to create a password</span>}
+                  {password || (
+                    <span className="text-muted-foreground text-sm">
+                      Click Generate to create a password
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Strength</Label>
-                  <Badge variant={strength >= 4 ? 'default' : strength >= 3 ? 'secondary' : 'destructive'} className="text-xs">
+                  <Badge
+                    variant={
+                      strength >= 4 ? 'default' : strength >= 3 ? 'secondary' : 'destructive'
+                    }
+                    className="text-xs"
+                  >
                     {strengthInfo.label}
                   </Badge>
                 </div>
                 <div className="w-full bg-slate-700/50 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-300 ${
-                      strength < 2 ? 'bg-red-500' : strength < 3 ? 'bg-orange-500' : strength < 4 ? 'bg-yellow-500' : strength < 5 ? 'bg-green-500' : 'bg-emerald-500'
+                      strength < 2
+                        ? 'bg-red-500'
+                        : strength < 3
+                          ? 'bg-orange-500'
+                          : strength < 4
+                            ? 'bg-yellow-500'
+                            : strength < 5
+                              ? 'bg-green-500'
+                              : 'bg-emerald-500'
                     }`}
                     style={{ width: `${(strength / 5) * 100}%` }}
                   />
@@ -214,9 +243,14 @@ export const PasswordGenerator: React.FC = () => {
 
               <div className="flex gap-2">
                 <Button onClick={generateNewPassword} className="flex-1">
-                  <RefreshCw className="w-4 h-4 mr-2" />Generate New
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Generate New
                 </Button>
-                <Button variant="outline" onClick={() => copyToClipboard(password)} disabled={!password}>
+                <Button
+                  variant="outline"
+                  onClick={() => copyToClipboard(password)}
+                  disabled={!password}
+                >
                   <Copy className="w-4 h-4" />
                 </Button>
               </div>
@@ -228,7 +262,7 @@ export const PasswordGenerator: React.FC = () => {
           <div className="space-y-3">
             <h4 className="font-semibold text-sm text-slate-300">Bulk Generation</h4>
             <div className="flex gap-2">
-              {[5, 10, 25].map(n => (
+              {[5, 10, 25].map((n) => (
                 <Button key={n} variant="outline" size="sm" onClick={() => generateMultiple(n)}>
                   Generate {n}
                 </Button>
@@ -240,9 +274,16 @@ export const PasswordGenerator: React.FC = () => {
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Generated Passwords ({generatedPasswords.length})</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(generatedPasswords.join('\n'))}>
-                    <Copy className="w-3.5 h-3.5 mr-1.5" />Copy All
+                  <CardTitle className="text-sm">
+                    Generated Passwords ({generatedPasswords.length})
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(generatedPasswords.join('\n'))}
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-1.5" />
+                    Copy All
                   </Button>
                 </div>
               </CardHeader>
@@ -251,7 +292,12 @@ export const PasswordGenerator: React.FC = () => {
                   {generatedPasswords.map((pwd, i) => (
                     <div key={i} className="flex items-center justify-between px-3 py-2 group">
                       <span className="font-mono text-sm text-white break-all flex-1">{pwd}</span>
-                      <Button variant="ghost" size="sm" className="ml-2 opacity-0 group-hover:opacity-100 shrink-0" onClick={() => copyToClipboard(pwd)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-2 opacity-0 group-hover:opacity-100 shrink-0"
+                        onClick={() => copyToClipboard(pwd)}
+                      >
                         <Copy className="w-3.5 h-3.5" />
                       </Button>
                     </div>

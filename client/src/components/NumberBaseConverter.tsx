@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -86,7 +92,7 @@ export const NumberBaseConverter: React.FC = () => {
       };
 
       // Add prefixes
-      Object.keys(newResults).forEach(key => {
+      Object.keys(newResults).forEach((key) => {
         const baseKey = key as NumberBase;
         const info = baseInfo[baseKey];
         newResults[baseKey] = info.prefix + newResults[baseKey];
@@ -140,7 +146,9 @@ export const NumberBaseConverter: React.FC = () => {
             </div>
             <div>
               <CardTitle>Number Base Converter</CardTitle>
-              <p className="text-muted-foreground text-sm">Convert numbers between binary, octal, decimal, and hex</p>
+              <p className="text-muted-foreground text-sm">
+                Convert numbers between binary, octal, decimal, and hex
+              </p>
             </div>
           </div>
         </CardHeader>
@@ -205,13 +213,22 @@ export const NumberBaseConverter: React.FC = () => {
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <span className="font-semibold text-sm">{info.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">(Base {info.base})</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (Base {info.base})
+                          </span>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(result)} disabled={!result}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyToClipboard(result)}
+                          disabled={!result}
+                        >
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
                       </div>
-                      <div className="font-mono text-sm break-all text-slate-200">{result || '—'}</div>
+                      <div className="font-mono text-sm break-all text-slate-200">
+                        {result || '—'}
+                      </div>
                       {result && baseKey === 'binary' && (
                         <div className="mt-1 text-xs text-muted-foreground">
                           Grouped: {formatWithSpaces(result)}
@@ -229,10 +246,22 @@ export const NumberBaseConverter: React.FC = () => {
             <CardContent className="pt-6">
               <h4 className="font-semibold mb-3">Number Systems</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
-                <div><strong className="text-foreground">Binary (Base 2):</strong> Uses only 0 and 1. Each digit represents a power of 2.</div>
-                <div><strong className="text-foreground">Octal (Base 8):</strong> Uses digits 0–7. Each digit represents a power of 8.</div>
-                <div><strong className="text-foreground">Decimal (Base 10):</strong> Our standard number system using digits 0–9.</div>
-                <div><strong className="text-foreground">Hexadecimal (Base 16):</strong> Uses 0–9 and A–F. Each digit represents a power of 16.</div>
+                <div>
+                  <strong className="text-foreground">Binary (Base 2):</strong> Uses only 0 and 1.
+                  Each digit represents a power of 2.
+                </div>
+                <div>
+                  <strong className="text-foreground">Octal (Base 8):</strong> Uses digits 0–7. Each
+                  digit represents a power of 8.
+                </div>
+                <div>
+                  <strong className="text-foreground">Decimal (Base 10):</strong> Our standard
+                  number system using digits 0–9.
+                </div>
+                <div>
+                  <strong className="text-foreground">Hexadecimal (Base 16):</strong> Uses 0–9 and
+                  A–F. Each digit represents a power of 16.
+                </div>
               </div>
             </CardContent>
           </Card>

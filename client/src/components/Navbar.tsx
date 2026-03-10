@@ -8,20 +8,19 @@ interface NavbarProps {
 }
 
 const NAV_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'terminal',  label: 'Terminal',   icon: <Terminal  className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'api',       label: 'API Tester', icon: <Globe     className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'dev-tools', label: 'Dev Tools',  icon: <Code2     className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'network',   label: 'Network',    icon: <Network   className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'encoders',  label: 'Encoders',   icon: <Binary    className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'webhook',   label: 'Webhooks',   icon: <Webhook   className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'guide',     label: 'Guide',      icon: <BookOpen  className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'terminal', label: 'Terminal', icon: <Terminal className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'api', label: 'API Tester', icon: <Globe className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'dev-tools', label: 'Dev Tools', icon: <Code2 className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'network', label: 'Network', icon: <Network className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'encoders', label: 'Encoders', icon: <Binary className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'webhook', label: 'Webhooks', icon: <Webhook className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'guide', label: 'Guide', icon: <BookOpen className="w-3.5 h-3.5 shrink-0" /> },
 ];
 
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_0_rgba(255,255,255,0.04)]">
       <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center gap-3">
-
         {/* ── Logo ── */}
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -49,9 +48,7 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
               onClick={() => onTabChange(id)}
               className={[
                 'relative flex items-center gap-1.5 px-3 h-full text-xs font-medium whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-sm',
-                activeTab === id
-                  ? 'text-white'
-                  : 'text-slate-400 hover:text-slate-100',
+                activeTab === id ? 'text-white' : 'text-slate-400 hover:text-slate-100',
               ].join(' ')}
             >
               {icon}
@@ -74,7 +71,6 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
             Free · No login
           </span>
         </div>
-
       </div>
     </header>
   );

@@ -23,11 +23,17 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
   ApiRequest,
   ApiResponse,
@@ -485,7 +491,12 @@ function buildPayload(req: ApiRequest) {
 
 // ---- Code Generation Functions -----------------------------------------------
 
-function generateJavaScript(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generateJavaScript(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -510,7 +521,12 @@ function generateJavaScript(url: string, method: HttpMethod, headers: Record<str
   return code;
 }
 
-function generatePython(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generatePython(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -547,7 +563,12 @@ function generatePython(url: string, method: HttpMethod, headers: Record<string,
   return code;
 }
 
-function generatePHP(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generatePHP(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -587,7 +608,12 @@ function generatePHP(url: string, method: HttpMethod, headers: Record<string, st
   return code;
 }
 
-function generateRuby(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generateRuby(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -615,7 +641,12 @@ function generateRuby(url: string, method: HttpMethod, headers: Record<string, s
   return code;
 }
 
-function generateGo(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generateGo(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -672,7 +703,12 @@ function generateGo(url: string, method: HttpMethod, headers: Record<string, str
   return code;
 }
 
-function generateJava(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generateJava(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -713,7 +749,12 @@ function generateJava(url: string, method: HttpMethod, headers: Record<string, s
   return code;
 }
 
-function generateCSharp(url: string, method: HttpMethod, headers: Record<string, string>, body?: string): string {
+function generateCSharp(
+  url: string,
+  method: HttpMethod,
+  headers: Record<string, string>,
+  body?: string,
+): string {
   const hasHeaders = Object.keys(headers).length > 0;
   const hasBody = body && body.trim();
 
@@ -902,7 +943,9 @@ function RespTabBtn({
     >
       {label}
       {badge !== undefined && badge > 0 && (
-        <span className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none ${active ? 'bg-indigo-500/25 text-indigo-300' : 'bg-slate-700 text-slate-400'}`}>
+        <span
+          className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none ${active ? 'bg-indigo-500/25 text-indigo-300' : 'bg-slate-700 text-slate-400'}`}
+        >
           {badge}
         </span>
       )}
@@ -1268,7 +1311,9 @@ function WebhookPanel() {
     if (!webhookUrl) return;
     await navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
-    try { toast.show('Webhook URL copied'); } catch {}
+    try {
+      toast.show('Webhook URL copied');
+    } catch {}
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -1419,7 +1464,7 @@ function WebhookPanel() {
 
 // ---- Response viewer ---------------------------------------------------------
 
-type RespTab = 'body' | 'headers' | 'cookies' | 'tests' | 'raw' | 'preview' | 'curl'
+type RespTab = 'body' | 'headers' | 'cookies' | 'tests' | 'raw' | 'preview' | 'curl';
 
 interface Cookie {
   name: string;
@@ -1430,7 +1475,7 @@ interface Cookie {
   httponly?: string;
   secure?: string;
   samesite?: string;
-};
+}
 
 function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd: string }) {
   const [tab, setTab] = useState<RespTab>('body');
@@ -1444,7 +1489,9 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    try { toast.show('Copied to clipboard'); } catch {}
+    try {
+      toast.show('Copied to clipboard');
+    } catch {}
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -2250,7 +2297,7 @@ export function ApiTester() {
               />
 
               <Button
-                variant={showHistory ? "default" : "outline"}
+                variant={showHistory ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setShowHistory(!showHistory)}
                 title="Request history"
@@ -2296,7 +2343,10 @@ export function ApiTester() {
                 {/* URL bar */}
                 <div className="flex items-center gap-2">
                   {/* Method selector */}
-                  <Select value={request.method} onValueChange={(value) => setField('method', value as HttpMethod)}>
+                  <Select
+                    value={request.method}
+                    onValueChange={(value) => setField('method', value as HttpMethod)}
+                  >
                     <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>
@@ -2462,11 +2512,15 @@ export function ApiTester() {
                 <CardTitle className="text-sm">Response</CardTitle>
                 {response && (
                   <div className="flex items-center gap-1.5">
-                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${response.status >= 200 && response.status < 300 ? 'bg-green-500/20 text-green-400' : response.status >= 400 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                    <span
+                      className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${response.status >= 200 && response.status < 300 ? 'bg-green-500/20 text-green-400' : response.status >= 400 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}
+                    >
                       {response.status}
                     </span>
                     <span className="text-xs text-slate-500">
-                      {response.headers['content-length'] ? `${(parseInt(response.headers['content-length']) / 1024).toFixed(1)} KB` : ''}
+                      {response.headers['content-length']
+                        ? `${(parseInt(response.headers['content-length']) / 1024).toFixed(1)} KB`
+                        : ''}
                     </span>
                   </div>
                 )}

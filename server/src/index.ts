@@ -175,7 +175,8 @@ const domainSchema = z.object({
 
 async function performDnsLookups(domain: string, types?: string[], resolver?: string) {
   const out: Record<string, unknown> = {};
-  const resolverOptions = resolver ? { server: resolver } : {};
+  // Node's DNS ResolveOptions requires a `ttl` boolean; include it explicitly
+  const resolverOptions: dns.ResolveOptions = { ttl: false, ...(resolver ? { server: resolver } : {}) };
 
   const doResolve = async (t: string) => {
     try {
