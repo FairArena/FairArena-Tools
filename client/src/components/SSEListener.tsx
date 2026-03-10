@@ -1,4 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Radio, Plug, PlugZap, Trash2, AlertCircle } from 'lucide-react';
 
 export const SSEListener: React.FC = () => {
   const [url, setUrl] = useState('');
@@ -91,110 +99,106 @@ export const SSEListener: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
       {/* Controls */}
       <div className="lg:col-span-1">
-        <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-lg">
-          <h3 className="text-white text-lg font-semibold mb-4">SSE Listener</h3>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-slate-300 mb-2">SSE Stream URL</label>
-              <input
+        <Card className="h-full">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <Radio className="w-4 h-4 text-white" />
+              </div>
+              <CardTitle className="text-base">SSE Listener</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="sse-url">SSE Stream URL</Label>
+              <Input
+                id="sse-url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/events"
-                className="w-full bg-slate-800/40 text-white px-3 py-2 rounded-md"
                 disabled={isConnected}
               />
             </div>
 
             <div className="flex gap-2">
               {!isConnected ? (
-                <button
-                  onClick={connect}
-                  className="flex-1 px-3 py-2 bg-green-600 rounded-md text-white hover:bg-green-700"
-                >
-                  Connect
-                </button>
+                <Button onClick={connect} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                  <PlugZap className="w-4 h-4 mr-1.5" />Connect
+                </Button>
               ) : (
-                <button
-                  onClick={disconnect}
-                  className="flex-1 px-3 py-2 bg-red-600 rounded-md text-white hover:bg-red-700"
-                >
-                  Disconnect
-                </button>
+                <Button onClick={disconnect} variant="destructive" className="flex-1">
+                  <Plug className="w-4 h-4 mr-1.5" />Disconnect
+                </Button>
               )}
-
-              <button
-                onClick={clearEvents}
-                className="px-3 py-2 bg-slate-700 text-slate-300 rounded-md hover:bg-slate-600"
-              >
-                Clear
-              </button>
+              <Button variant="outline" size="icon" onClick={clearEvents} title="Clear events">
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
 
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id="autoscroll"
                 checked={autoScroll}
-                onChange={(e) => setAutoScroll(e.target.checked)}
-                className="rounded"
+                onCheckedChange={(v) => setAutoScroll(v as boolean)}
               />
-              <label htmlFor="autoscroll" className="text-sm text-slate-300">
-                Auto-scroll to latest events
-              </label>
+              <Label htmlFor="autoscroll" className="font-normal text-sm">Auto-scroll to latest</Label>
             </div>
 
-            <div className="text-sm text-slate-400">
-              <div>Status: <span className={isConnected ? 'text-green-400' : 'text-red-400'}>
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </span></div>
-              <div>Events received: {events.length}</div>
+            <div className="p-3 bg-slate-800/40 rounded-lg border border-slate-700/50 space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Status</span>
+                <Badge variant={isConnected ? 'default' : 'secondary'} className="text-xs">
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Events received</span>
+                <span className="font-mono text-sm">{events.length}</span>
+              </div>
             </div>
 
             {error && (
-              <div className="text-red-400 text-sm bg-red-900/20 p-2 rounded">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">{error}</AlertDescription>
+              </Alert>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Events Display */}
       <div className="lg:col-span-2">
-        <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-lg h-full">
-          <h3 className="text-white text-lg font-semibold mb-4">Events</h3>
-
-          <div className="h-96 overflow-auto bg-slate-800/20 rounded p-3">
-            {events.length === 0 ? (
-              <div className="text-slate-400 text-center py-8">
-                {isConnected ? 'Waiting for events...' : 'No events received yet'}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {events.map((event, index) => (
-                  <div key={`${event.id}-${index}`} className="bg-slate-800/40 p-3 rounded">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">
-                          {event.type}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {new Date(event.timestamp).toLocaleTimeString()}
-                        </span>
+        <Card className="h-full flex flex-col">
+          <CardHeader>
+            <CardTitle className="text-base">Events</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 min-h-0">
+            <div className="h-96 overflow-auto bg-slate-950/40 border border-slate-800/50 rounded-lg p-3">
+              {events.length === 0 ? (
+                <div className="text-muted-foreground text-center py-8 text-sm">
+                  {isConnected ? 'Waiting for events...' : 'No events received yet'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {events.map((event, index) => (
+                    <div key={`${event.id}-${index}`} className="bg-slate-800/40 border border-slate-700/30 p-3 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs font-mono">{event.type}</Badge>
+                          <span className="text-xs text-muted-foreground">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground font-mono">#{index + 1}</span>
                       </div>
-                      <span className="text-xs text-slate-500">#{index + 1}</span>
+                      <div className="text-sm text-white font-mono whitespace-pre-wrap break-all">{event.data}</div>
                     </div>
-                    <div className="text-sm text-white font-mono whitespace-pre-wrap break-all">
-                      {event.data}
-                    </div>
-                  </div>
-                ))}
-                <div ref={eventsEndRef} />
-              </div>
-            )}
-          </div>
-        </div>
+                  ))}
+                  <div ref={eventsEndRef} />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

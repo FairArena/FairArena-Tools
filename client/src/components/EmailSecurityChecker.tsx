@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
 import { API_BASE } from '../hooks/useTerminalSession.js';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Mail, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
 
 interface SecurityRecord {
   type: 'SPF' | 'DMARC' | 'DKIM';
@@ -189,160 +196,179 @@ export const EmailSecurityChecker: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-lg">
-        <h3 className="text-white text-2xl font-semibold mb-6">Email Security Checker</h3>
-
-        <div className="mb-6">
-          <div className="flex gap-2">
-            <input
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="example.com"
-              className="flex-1 bg-slate-800/40 text-white px-4 py-3 rounded-md"
-            />
-            <button
-              onClick={checkDomain}
-              disabled={loading}
-              className="px-6 py-3 bg-brand-600 rounded-md text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {loading ? 'Checking...' : 'Check Security'}
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 text-red-400 bg-red-900/20 p-3 rounded">
-            {error}
-          </div>
-        )}
-
-        {results.length > 0 && (
-          <div className="space-y-4">
-            {/* Security Score */}
-            <div className="bg-slate-800/40 p-4 rounded">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-white font-semibold">Security Score</h4>
-                <span className="text-2xl font-bold text-white">{getSecurityScore()}%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-2 rounded-full transition-all"
-                  style={{ width: `${getSecurityScore()}%` }}
-                />
-              </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Based on presence of valid SPF, DMARC, and DKIM records
-              </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg">
+              <Mail className="w-5 h-5 text-white" />
             </div>
-
-            {/* Individual Records */}
-            {results.map((result, index) => (
-              <div key={index} className="bg-slate-800/40 p-4 rounded">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-3 h-3 rounded-full ${result.valid ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <h4 className="text-white font-semibold">{result.type} Record</h4>
-                  <span className={`text-xs px-2 py-1 rounded ${result.valid ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
-                    {result.valid ? 'Valid' : 'Invalid'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-900/50 p-3 rounded mb-3">
-                  <div className="text-xs text-slate-400 mb-1">Raw Record:</div>
-                  <div className="text-sm text-white font-mono break-all">{result.record}</div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {result.details.policy && (
-                    <div>
-                      <div className="text-xs text-slate-400">Policy</div>
-                      <div className="text-sm text-white">{result.details.policy}</div>
-                    </div>
-                  )}
-
-                  {result.details.includes && result.details.includes.length > 0 && (
-                    <div>
-                      <div className="text-xs text-slate-400">Includes</div>
-                      <div className="text-sm text-white">{result.details.includes.join(', ')}</div>
-                    </div>
-                  )}
-
-                  {result.details.mechanisms && result.details.mechanisms.length > 0 && (
-                    <div>
-                      <div className="text-xs text-slate-400">Mechanisms</div>
-                      <div className="text-sm text-white">{result.details.mechanisms.join(', ')}</div>
-                    </div>
-                  )}
-
-                  {result.details.rua && (
-                    <div>
-                      <div className="text-xs text-slate-400">Aggregate Reports</div>
-                      <div className="text-sm text-white break-all">{result.details.rua}</div>
-                    </div>
-                  )}
-
-                  {result.details.ruf && (
-                    <div>
-                      <div className="text-xs text-slate-400">Forensic Reports</div>
-                      <div className="text-sm text-white break-all">{result.details.ruf}</div>
-                    </div>
-                  )}
-
-                  {result.details.selector && (
-                    <div>
-                      <div className="text-xs text-slate-400">Selector</div>
-                      <div className="text-sm text-white">{result.details.selector}</div>
-                    </div>
-                  )}
-                </div>
-
-                {result.details.errors && result.details.errors.length > 0 && (
-                  <div className="mt-3">
-                    <div className="text-xs text-red-400 mb-1">Errors:</div>
-                    <ul className="text-xs text-red-300 list-disc list-inside">
-                      {result.details.errors.map((error, i) => (
-                        <li key={i}>{error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Recommendations */}
-            <div className="bg-slate-800/40 p-4 rounded">
-              <h4 className="text-white font-semibold mb-3">Recommendations</h4>
-              <div className="space-y-2 text-sm text-slate-300">
-                {!results.some(r => r.type === 'SPF' && r.valid) && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-red-400 mt-1">•</span>
-                    <span>Add SPF record to prevent email spoofing</span>
-                  </div>
-                )}
-                {!results.some(r => r.type === 'DMARC' && r.valid) && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-yellow-400 mt-1">•</span>
-                    <span>Add DMARC record for better email authentication and reporting</span>
-                  </div>
-                )}
-                {!results.some(r => r.type === 'DKIM' && r.valid) && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-yellow-400 mt-1">•</span>
-                    <span>Configure DKIM signing for your email domain</span>
-                  </div>
-                )}
-                {results.some(r => r.type === 'SPF' && r.valid) &&
-                 results.some(r => r.type === 'DMARC' && r.valid) &&
-                 results.some(r => r.type === 'DKIM' && r.valid) && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-green-400 mt-1">✓</span>
-                    <span>Excellent! Your domain has comprehensive email security</span>
-                  </div>
-                )}
-              </div>
+            <div>
+              <CardTitle>Email Security Checker</CardTitle>
+              <p className="text-muted-foreground text-sm">Analyze SPF, DMARC, and DKIM records for a domain</p>
             </div>
           </div>
-        )}
-      </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Domain input */}
+          <div className="space-y-2">
+            <Label htmlFor="domain">Domain</Label>
+            <div className="flex gap-2">
+              <Input
+                id="domain"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="example.com"
+                onKeyDown={(e) => e.key === 'Enter' && checkDomain()}
+              />
+              <Button onClick={checkDomain} disabled={loading}>
+                {loading ? 'Checking...' : 'Check Security'}
+              </Button>
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {results.length > 0 && (
+            <div className="space-y-4">
+              {/* Security Score */}
+              <Card>
+                <CardContent className="pt-6 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-brand-400" />
+                      <h4 className="font-semibold">Security Score</h4>
+                    </div>
+                    <span className="text-2xl font-bold">{getSecurityScore()}%</span>
+                  </div>
+                  <div className="w-full bg-slate-700/50 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${getSecurityScore()}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Based on presence of valid SPF, DMARC, and DKIM records</p>
+                </CardContent>
+              </Card>
+
+              {/* Individual Records */}
+              {results.map((result, index) => (
+                <Card key={index}>
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      {result.valid ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                      )}
+                      <h4 className="font-semibold">{result.type} Record</h4>
+                      <Badge variant={result.valid ? 'default' : 'destructive'} className="text-xs ml-auto">
+                        {result.valid ? 'Valid' : 'Invalid'}
+                      </Badge>
+                    </div>
+
+                    <div className="bg-slate-950/50 border border-slate-800/50 p-3 rounded-lg">
+                      <div className="text-xs text-muted-foreground mb-1">Raw Record</div>
+                      <div className="text-sm text-white font-mono break-all">{result.record}</div>
+                    </div>
+
+                    {(result.details.policy || (result.details.includes?.length) || (result.details.mechanisms?.length) || result.details.rua || result.details.ruf || result.details.selector) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {result.details.policy && (
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-muted-foreground">Policy</div>
+                            <div className="text-sm font-mono">{result.details.policy}</div>
+                          </div>
+                        )}
+                        {result.details.includes && result.details.includes.length > 0 && (
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-muted-foreground">Includes</div>
+                            <div className="text-sm font-mono">{result.details.includes.join(', ')}</div>
+                          </div>
+                        )}
+                        {result.details.mechanisms && result.details.mechanisms.length > 0 && (
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-muted-foreground">Mechanisms</div>
+                            <div className="text-sm font-mono">{result.details.mechanisms.join(', ')}</div>
+                          </div>
+                        )}
+                        {result.details.rua && (
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-muted-foreground">Aggregate Reports</div>
+                            <div className="text-sm font-mono break-all">{result.details.rua}</div>
+                          </div>
+                        )}
+                        {result.details.ruf && (
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-muted-foreground">Forensic Reports</div>
+                            <div className="text-sm font-mono break-all">{result.details.ruf}</div>
+                          </div>
+                        )}
+                        {result.details.selector && (
+                          <div className="space-y-0.5">
+                            <div className="text-xs text-muted-foreground">Selector</div>
+                            <div className="text-sm font-mono">{result.details.selector}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {result.details.errors && result.details.errors.length > 0 && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <ul className="text-xs space-y-0.5">
+                            {result.details.errors.map((e, i) => <li key={i}>{e}</li>)}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Recommendations */}
+              <Card>
+                <CardContent className="pt-6">
+                  <h4 className="font-semibold mb-3">Recommendations</h4>
+                  <div className="space-y-2 text-sm">
+                    {!results.some(r => r.type === 'SPF' && r.valid) && (
+                      <div className="flex items-start gap-2 text-red-400">
+                        <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>Add an SPF record to prevent email spoofing</span>
+                      </div>
+                    )}
+                    {!results.some(r => r.type === 'DMARC' && r.valid) && (
+                      <div className="flex items-start gap-2 text-yellow-400">
+                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>Add a DMARC record for better email authentication and reporting</span>
+                      </div>
+                    )}
+                    {!results.some(r => r.type === 'DKIM' && r.valid) && (
+                      <div className="flex items-start gap-2 text-yellow-400">
+                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>Configure DKIM signing for your email domain</span>
+                      </div>
+                    )}
+                    {results.some(r => r.type === 'SPF' && r.valid) &&
+                     results.some(r => r.type === 'DMARC' && r.valid) &&
+                     results.some(r => r.type === 'DKIM' && r.valid) && (
+                      <div className="flex items-start gap-2 text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>Excellent! Your domain has comprehensive email security</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

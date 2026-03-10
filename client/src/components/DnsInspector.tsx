@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { API_BASE } from '../hooks/useTerminalSession.js';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Clock, Search, Globe, Trash2, Download, Share, AlertCircle, CheckCircle } from 'lucide-react';
 
 type HistoryItem = { domain: string; types: string[]; resolver?: string; ts: number; result?: any };
 
@@ -71,9 +81,7 @@ export const DnsInspector: React.FC = () => {
     } catch {}
   }, [history]);
 
-  const toggleType = (t: string) => {
-    setTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  };
+  // toggleType removed; using Checkbox onCheckedChange handlers instead
 
   const normalizeInput = (input: string) => {
     const s = input.trim();
@@ -235,334 +243,362 @@ export const DnsInspector: React.FC = () => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <aside className="md:col-span-1">
-        <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h4 className="text-sm font-semibold text-white">History</h4>
-            </div>
-            <button
-              onClick={clearHistory}
-              className="text-xs text-slate-400 hover:text-rose-400 transition-colors duration-200"
-              title="Clear history"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          </div>
-          <div className="max-h-96 overflow-auto space-y-2">
-            {history.length === 0 && (
-              <div className="text-slate-500 text-sm text-center py-4">
-                <svg className="w-8 h-8 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                No lookups yet
-              </div>
-            )}
-            {history.map((h) => (
-              <button
-                key={h.ts}
-                onClick={() => runFromHistory(h)}
-                className="w-full text-left px-3 py-3 rounded-lg hover:bg-slate-800/40 transition-all duration-200 border border-transparent hover:border-slate-700/50 group"
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4" />
+                History
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearHistory}
+                title="Clear history"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm font-medium truncate group-hover:text-brand-400 transition-colors">
-                      {h.domain}
-                    </div>
-                    <div className="text-xs text-slate-400 mt-1">
-                      {h.types.join(', ')}
-                    </div>
-                    {h.resolver && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        via {h.resolver}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500 ml-2 flex-shrink-0">
-                    {new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-96">
+              {history.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  No lookups yet
                 </div>
-              </button>
-            ))}
-          </div>
-        </div>
+              ) : (
+                <div className="space-y-2">
+                  {history.map((h) => (
+                    <Button
+                      key={h.ts}
+                      variant="ghost"
+                      className="w-full justify-start h-auto p-3"
+                      onClick={() => runFromHistory(h)}
+                    >
+                      <div className="flex items-start justify-between w-full">
+                        <div className="flex-1 min-w-0 text-left">
+                          <div className="font-medium truncate">{h.domain}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {h.types.join(', ')}
+                          </div>
+                          {h.resolver && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              via {h.resolver}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                          {new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
       </aside>
 
       <section className="md:col-span-3">
-        <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-xl shadow-lg">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4M12 18v4M4 6h4M16 6h4M4 18h4M16 18h4M12 12a3 3 0 100-6 3 3 0 000 6z" />
-              </svg>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                <Search className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <CardTitle>DNS Inspector</CardTitle>
+                <p className="text-muted-foreground text-sm">Query DNS records and check global propagation</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-white text-xl font-semibold">DNS Inspector</h3>
-              <p className="text-slate-400 text-sm">Query DNS records and check global propagation</p>
-            </div>
-          </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'lookup' | 'propagation')} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="lookup" className="flex items-center gap-2">
+                  <Search className="h-4 w-4" />
+                  DNS Lookup
+                </TabsTrigger>
+                <TabsTrigger value="propagation" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Propagation Check
+                </TabsTrigger>
+              </TabsList>
 
-          {/* Tab selector with improved styling */}
-          <div className="flex gap-1 mb-6 p-1 bg-slate-800/50 rounded-lg">
-            <button
-              onClick={() => setActiveTab('lookup')}
-              className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeTab === 'lookup'
-                  ? 'bg-brand-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-              }`}
-            >
-              <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              DNS Lookup
-            </button>
-            <button
-              onClick={() => setActiveTab('propagation')}
-              className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeTab === 'propagation'
-                  ? 'bg-brand-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-              }`}
-            >
-              <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
-              </svg>
-              Propagation Check
-            </button>
-          </div>
-
-          <form onSubmit={activeTab === 'lookup' ? submit : checkPropagation} className="space-y-4 mb-6">
-            {/* Domain input with improved styling */}
-            <div className="space-y-2">
-              <label className="text-slate-300 text-sm font-medium">Domain Name</label>
-              <div className="flex gap-2">
-                <input
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="example.com or https://example.com/path"
-                  className="flex-1 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
-                  onKeyPress={(e) => e.key === 'Enter' && (activeTab === 'lookup' ? submit() : checkPropagation())}
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-3 bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 disabled:from-slate-600 disabled:to-slate-700 text-white rounded-lg font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 shadow-lg hover:shadow-xl"
-                >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      {activeTab === 'lookup' ? 'Resolving...' : 'Checking...'}
+              <TabsContent value="lookup" className="space-y-4">
+                <form onSubmit={submit} className="space-y-4">
+                  {/* Domain input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="domain">Domain Name</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="domain"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        placeholder="example.com or https://example.com/path"
+                        onKeyPress={(e) => e.key === 'Enter' && submit()}
+                      />
+                      <Button type="submit" disabled={loading}>
+                        {loading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                            Resolving...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-4 w-4 mr-2" />
+                            Resolve
+                          </>
+                        )}
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={activeTab === 'lookup' ? "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" : "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"} />
-                      </svg>
-                      {activeTab === 'lookup' ? 'Resolve' : 'Check Propagation'}
+                  </div>
+
+                  {/* Custom resolver */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="custom-resolver"
+                        checked={useCustomResolver}
+                        onCheckedChange={(checked) => setUseCustomResolver(checked as boolean)}
+                      />
+                      <Label htmlFor="custom-resolver">Use Custom DNS Server</Label>
                     </div>
-                  )}
-                </button>
-              </div>
+                    {useCustomResolver && (
+                      <Input
+                        value={customResolver}
+                        onChange={(e) => setCustomResolver(e.target.value)}
+                        placeholder="8.8.8.8"
+                        className="w-48"
+                      />
+                    )}
+                  </div>
+
+                  {/* Record type checkboxes */}
+                  <div className="space-y-2">
+                    <Label>Record Types</Label>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {allRecordTypes.map((t) => (
+                        <div key={t} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`type-${t}`}
+                            checked={types.includes(t)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setTypes([...types, t]);
+                              } else {
+                                setTypes(types.filter(type => type !== t));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`type-${t}`} className="text-sm">{t}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="propagation" className="space-y-4">
+                <form onSubmit={checkPropagation} className="space-y-4">
+                  {/* Domain input */}
+                  <div className="space-y-2">
+                    <Label htmlFor="domain-prop">Domain Name</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="domain-prop"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        placeholder="example.com or https://example.com/path"
+                        onKeyPress={(e) => e.key === 'Enter' && checkPropagation()}
+                      />
+                      <Button type="submit" disabled={loading}>
+                        {loading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="h-4 w-4 mr-2" />
+                            Check Propagation
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Record type checkboxes */}
+                  <div className="space-y-2">
+                    <Label>Record Types</Label>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {allRecordTypes.map((t) => (
+                        <div key={t} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`prop-type-${t}`}
+                            checked={types.includes(t)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setTypes([...types, t]);
+                              } else {
+                                setTypes(types.filter(type => type !== t));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`prop-type-${t}`} className="text-sm">{t}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </form>
+              </TabsContent>
+            </Tabs>
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={exportResults}
+                disabled={!result && !propagationResult}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export JSON
+              </Button>
+              <Button
+                variant="outline"
+                onClick={copyShareableLink}
+              >
+                <Share className="h-4 w-4 mr-2" />
+                Share Link
+              </Button>
             </div>
 
-            {/* Custom resolver */}
-            {activeTab === 'lookup' && (
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={useCustomResolver}
-                    onChange={(e) => setUseCustomResolver(e.target.checked)}
-                    className="w-4 h-4 text-brand-600 bg-slate-800 border-slate-600 rounded focus:ring-brand-500 focus:ring-2"
-                  />
-                  <span>Use Custom DNS Server</span>
-                </label>
-                {useCustomResolver && (
-                  <input
-                    value={customResolver}
-                    onChange={(e) => setCustomResolver(e.target.value)}
-                    placeholder="8.8.8.8"
-                    className="px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200 w-48"
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Record type checkboxes with improved styling */}
-            <div className="space-y-2">
-              <label className="text-slate-300 text-sm font-medium">Record Types</label>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                {allRecordTypes.map((t) => (
-                  <label
-                    key={t}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
-                      types.includes(t)
-                        ? 'bg-brand-600 text-white shadow-md'
-                        : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={types.includes(t)}
-                      onChange={() => toggleType(t)}
-                      className="w-4 h-4 text-brand-600 bg-slate-800 border-slate-600 rounded focus:ring-brand-500 focus:ring-2"
-                    />
-                    <span className="text-sm font-medium">{t}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </form>
-
-          {/* Action buttons with improved styling */}
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={exportResults}
-              disabled={!result && !propagationResult}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 disabled:bg-slate-800/30 disabled:cursor-not-allowed text-slate-300 hover:text-white disabled:text-slate-500 rounded-lg text-sm font-medium transition-all duration-200 border border-slate-700 disabled:border-slate-800"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Export JSON
-            </button>
-            <button
-              onClick={copyShareableLink}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white rounded-lg text-sm font-medium transition-all duration-200 border border-slate-700"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-              </svg>
-              Share Link
-            </button>
-          </div>
-
-          {/* Results display with improved styling */}
-          <div className="space-y-4">
+            {/* Error display */}
             {error && (
-              <div className="p-4 bg-rose-900/20 border border-rose-700/50 rounded-lg">
-                <div className="flex items-center gap-2 text-rose-400">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="font-medium">Error</span>
-                </div>
-                <p className="text-rose-300 text-sm mt-1">{error}</p>
-              </div>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            {activeTab === 'lookup' && result && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {result.cached ? 'From cache' : 'Live lookup'}
-                  {useCustomResolver && ` via ${customResolver}`}
-                </div>
-                <div className="grid gap-3">
-                  {allRecordTypes.map((t) => {
-                    const v = result.data?.[t];
-                    return (
-                      <div key={t} className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-white text-sm">{t}</span>
-                            {t === 'TXT' && v && Array.isArray(v) && v.length > 0 && (
-                              <button
-                                onClick={() => analyzeSpfDmarc(v)}
-                                className="px-2 py-1 bg-brand-600/20 hover:bg-brand-600/30 text-brand-400 hover:text-brand-300 rounded text-xs font-medium transition-all duration-200 border border-brand-600/30"
-                              >
-                                Analyze SPF/DMARC
-                              </button>
-                            )}
-                          </div>
-                          {v === undefined && (
-                            <span className="text-slate-500 text-xs">Not requested</span>
-                          )}
-                        </div>
-                        {v && v.error && (
-                          <div className="text-rose-400 text-sm bg-rose-900/20 p-2 rounded border border-rose-700/30">
-                            {v.error}
-                          </div>
-                        )}
-                        {Array.isArray(v) && v.length === 0 && (
-                          <div className="text-slate-500 text-sm italic">No records found</div>
-                        )}
-                        {Array.isArray(v) && v.length > 0 && (
-                          <div className="space-y-1">
-                            {v.map((item: any, i: number) => (
-                              <div key={i} className="text-sm text-slate-300 bg-slate-900/40 p-2 rounded border border-slate-700/30 font-mono">
-                                {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'propagation' && propagationResult && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
-                  </svg>
-                  Global propagation check across multiple DNS servers
-                </div>
-                <div className="grid gap-3">
-                  {Object.entries(propagationResult.results).map(([resolverName, check]: [string, any]) => (
-                    <div key={resolverName} className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="font-semibold text-white text-sm">{resolverName}</div>
-                        <div className="text-xs text-slate-500">{check.server}</div>
-                      </div>
-                      {check.error ? (
-                        <div className="text-rose-400 text-sm bg-rose-900/20 p-2 rounded border border-rose-700/30">
-                          {check.error}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {Object.entries(check.data || {}).map(([type, records]: [string, any]) => (
-                            <div key={type} className="flex items-start gap-2">
-                              <span className="text-slate-400 text-xs font-medium min-w-[3rem]">{type}:</span>
-                              <span className="text-slate-300 text-sm font-mono bg-slate-900/40 p-1 rounded border border-slate-700/30 flex-1">
-                                {Array.isArray(records) ? records.join(', ') : String(records)}
-                              </span>
+            {/* Results display */}
+            <div className="space-y-4">
+              {activeTab === 'lookup' && result && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    {result.cached ? 'From cache' : 'Live lookup'}
+                    {useCustomResolver && ` via ${customResolver}`}
+                  </div>
+                  <div className="grid gap-3">
+                    {allRecordTypes.map((t) => {
+                      const v = result.data?.[t];
+                      return (
+                        <Card key={t}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm">{t}</CardTitle>
+                              {t === 'TXT' && v && Array.isArray(v) && v.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => analyzeSpfDmarc(v)}
+                                >
+                                  Analyze SPF/DMARC
+                                </Button>
+                              )}
+                              {v === undefined && (
+                                <Badge variant="secondary">Not requested</Badge>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                          </CardHeader>
+                          <CardContent>
+                            {v && v.error && (
+                              <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>{v.error}</AlertDescription>
+                              </Alert>
+                            )}
+                            {Array.isArray(v) && v.length === 0 && (
+                              <p className="text-muted-foreground italic">No records found</p>
+                            )}
+                            {Array.isArray(v) && v.length > 0 && (
+                              <div className="space-y-2">
+                                {v.map((item: any, i: number) => (
+                                  <div key={i} className="text-sm font-mono bg-muted p-2 rounded border">
+                                    {typeof item === 'object' ? JSON.stringify(item, null, 2) : String(item)}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* SPF/DMARC Analysis with improved styling */}
-            {spfDmarcAnalysis && (
-              <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="font-semibold text-white text-sm">SPF/DMARC Analysis</div>
+              {activeTab === 'propagation' && propagationResult && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Globe className="h-4 w-4" />
+                    Global propagation check across multiple DNS servers
+                  </div>
+                  <div className="grid gap-3">
+                    {Object.entries(propagationResult.results).map(([resolverName, check]: [string, any]) => (
+                      <Card key={resolverName}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm">{resolverName}</CardTitle>
+                            <Badge variant="outline">{check.server}</Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          {check.error ? (
+                            <Alert variant="destructive">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription>{check.error}</AlertDescription>
+                            </Alert>
+                          ) : (
+                            <div className="space-y-2">
+                              {Object.entries(check.data || {}).map(([type, records]: [string, any]) => (
+                                <div key={type} className="flex items-start gap-2">
+                                  <span className="text-muted-foreground text-xs font-medium min-w-[3rem]">{type}:</span>
+                                  <span className="text-sm font-mono bg-muted p-1 rounded border flex-1">
+                                    {Array.isArray(records) ? records.join(', ') : String(records)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-sm text-slate-300 whitespace-pre-line font-mono bg-slate-900/40 p-3 rounded border border-slate-700/30">
-                  {spfDmarcAnalysis}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+
+              {/* SPF/DMARC Analysis */}
+              {spfDmarcAnalysis && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-400" />
+                      SPF/DMARC Analysis
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="text-sm whitespace-pre-wrap font-mono bg-muted p-3 rounded border">{spfDmarcAnalysis}</pre>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

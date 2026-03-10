@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
+import { Copy, ArrowLeftRight, Trash2, Binary, AlertCircle, Shuffle } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 type EncodingType = 'base64' | 'url' | 'hex' | 'binary';
+
+const ENCODING_INFO: Record<EncodingType, string> = {
+  base64: 'Base64 encoding converts binary data to a text format using 64 different ASCII characters. Commonly used for encoding data in URLs, cookies, and email attachments.',
+  url: 'URL encoding (percent-encoding) replaces unsafe characters with %XX where XX is the hexadecimal value. Used to encode URLs and form data for safe transmission.',
+  hex: 'Hexadecimal encoding represents each byte as two hexadecimal digits (00-FF). Commonly used for representing binary data in a human-readable format.',
+  binary: 'Binary encoding represents each character as its 8-bit binary equivalent. Shows the raw binary representation of text data.',
+};
 
 export const EncoderDecoder: React.FC = () => {
   const [input, setInput] = useState('');
@@ -8,6 +24,7 @@ export const EncoderDecoder: React.FC = () => {
   const [encodingType, setEncodingType] = useState<EncodingType>('base64');
   const [mode, setMode] = useState<'encode' | 'decode'>('encode');
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const processText = (text: string, type: EncodingType, isEncode: boolean) => {
     if (!text) {
@@ -74,15 +91,13 @@ export const EncoderDecoder: React.FC = () => {
   }, [input, encodingType, mode]);
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).then(() => toast.show('Copied to clipboard'));
   };
 
   const swapMode = () => {
     setMode(mode === 'encode' ? 'decode' : 'encode');
-    // Swap input and output
-    const temp = input;
     setInput(output);
-    setOutput(temp);
+    setOutput(input);
   };
 
   const clearAll = () => {
@@ -91,164 +106,125 @@ export const EncoderDecoder: React.FC = () => {
     setError(null);
   };
 
-  const examples = {
-    base64: {
-      encode: 'Hello World',
-      decode: 'SGVsbG8gV29ybGQ='
-    },
-    url: {
-      encode: 'Hello World!',
-      decode: 'Hello%20World%21'
-    },
-    hex: {
-      encode: 'ABC',
-      decode: '414243'
-    },
-    binary: {
-      encode: 'ABC',
-      decode: '01000001 01000010 01000011'
-    }
+  const examples: Record<EncodingType, Record<'encode' | 'decode', string>> = {
+    base64: { encode: 'Hello World', decode: 'SGVsbG8gV29ybGQ=' },
+    url: { encode: 'Hello World!', decode: 'Hello%20World%21' },
+    hex: { encode: 'ABC', decode: '414243' },
+    binary: { encode: 'ABC', decode: '01000001 01000010 01000011' },
   };
 
   const loadExample = () => {
-    const example = examples[encodingType][mode];
-    setInput(example);
+    setInput(examples[encodingType][mode]);
   };
+
+  const inputLabel = mode === 'encode' ? 'Plain Text' : `${encodingType.toUpperCase()} Input`;
+  const outputLabel = mode === 'encode' ? `${encodingType.toUpperCase()} Output` : 'Plain Text';
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-lg">
-        <h3 className="text-white text-2xl font-semibold mb-6">Encoder / Decoder</h3>
-
-        {/* Controls */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div>
-            <label className="block text-sm text-slate-300 mb-2">Encoding Type</label>
-            <select
-              value={encodingType}
-              onChange={(e) => setEncodingType(e.target.value as EncodingType)}
-              className="bg-slate-800/40 text-white px-3 py-2 rounded-md"
-            >
-              <option value="base64">Base64</option>
-              <option value="url">URL</option>
-              <option value="hex">Hex</option>
-              <option value="binary">Binary</option>
-            </select>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+              <Binary className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <CardTitle>Encoder / Decoder</CardTitle>
+              <p className="text-muted-foreground text-sm">Encode and decode text in various formats</p>
+            </div>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Controls */}
+          <div className="flex flex-wrap items-end gap-4 p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
+            <div className="space-y-2">
+              <Label>Encoding Type</Label>
+              <Select value={encodingType} onValueChange={(v) => setEncodingType(v as EncodingType)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="base64">Base64</SelectItem>
+                  <SelectItem value="url">URL</SelectItem>
+                  <SelectItem value="hex">Hex</SelectItem>
+                  <SelectItem value="binary">Binary</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div>
-            <label className="block text-sm text-slate-300 mb-2">Mode</label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMode('encode')}
-                className={`px-3 py-2 rounded text-sm ${mode === 'encode' ? 'bg-brand-600 text-white' : 'bg-slate-700 text-slate-300'}`}
-              >
-                Encode
-              </button>
-              <button
-                onClick={() => setMode('decode')}
-                className={`px-3 py-2 rounded text-sm ${mode === 'decode' ? 'bg-brand-600 text-white' : 'bg-slate-700 text-slate-300'}`}
-              >
-                Decode
-              </button>
+            <div className="space-y-2">
+              <Label>Mode</Label>
+              <Tabs value={mode} onValueChange={(v) => setMode(v as 'encode' | 'decode')}>
+                <TabsList>
+                  <TabsTrigger value="encode">Encode</TabsTrigger>
+                  <TabsTrigger value="decode">Decode</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={swapMode} title="Swap input ↔ output">
+                <ArrowLeftRight className="w-4 h-4 mr-1.5" />Swap
+              </Button>
+              <Button variant="outline" size="sm" onClick={loadExample}>
+                <Shuffle className="w-4 h-4 mr-1.5" />Example
+              </Button>
+              <Button variant="outline" size="sm" onClick={clearAll}>
+                <Trash2 className="w-4 h-4 mr-1.5" />Clear
+              </Button>
             </div>
           </div>
 
-          <div className="flex items-end gap-2">
-            <button
-              onClick={swapMode}
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-              title="Swap input and output"
-            >
-              ⇅ Swap
-            </button>
-            <button
-              onClick={clearAll}
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-            >
-              Clear
-            </button>
-            <button
-              onClick={loadExample}
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-            >
-              Example
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Input */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-slate-300">
-                {mode === 'encode' ? 'Plain Text' : `${encodingType.toUpperCase()} Input`}
-              </label>
-              <button
-                onClick={() => copyToClipboard(input)}
-                className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 hover:bg-slate-600"
-                disabled={!input}
-              >
-                Copy
-              </button>
+          {/* Input / Output */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>{inputLabel}</Label>
+                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(input)} disabled={!input}>
+                  <Copy className="w-3.5 h-3.5 mr-1.5" />Copy
+                </Button>
+              </div>
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={mode === 'encode' ? 'Enter text to encode...' : `Enter ${encodingType} to decode...`}
+                className="font-mono text-sm h-48 resize-none"
+              />
             </div>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={mode === 'encode' ? 'Enter text to encode...' : `Enter ${encodingType} to decode...`}
-              className="w-full bg-slate-800/40 text-white px-4 py-3 rounded-md font-mono text-sm h-48 resize-none"
-            />
-          </div>
 
-          {/* Output */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-slate-300">
-                {mode === 'encode' ? `${encodingType.toUpperCase()} Output` : 'Plain Text'}
-              </label>
-              <button
-                onClick={() => copyToClipboard(output)}
-                className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 hover:bg-slate-600"
-                disabled={!output}
-              >
-                Copy
-              </button>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>{outputLabel}</Label>
+                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(output)} disabled={!output}>
+                  <Copy className="w-3.5 h-3.5 mr-1.5" />Copy
+                </Button>
+              </div>
+              <Textarea
+                value={output}
+                readOnly
+                placeholder="Output will appear here..."
+                className="font-mono text-sm h-48 resize-none"
+              />
             </div>
-            <textarea
-              value={output}
-              readOnly
-              placeholder="Output will appear here..."
-              className="w-full bg-slate-800/40 text-white px-4 py-3 rounded-md font-mono text-sm h-48 resize-none"
-            />
           </div>
-        </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mt-4 text-red-400 bg-red-900/20 p-3 rounded">
-            Error: {error}
-          </div>
-        )}
+          {/* Error */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* Information Panel */}
-        <div className="mt-6 bg-slate-800/40 p-4 rounded">
-          <h4 className="text-white font-semibold mb-3">About {encodingType.toUpperCase()}</h4>
-          <div className="text-sm text-slate-300">
-            {encodingType === 'base64' && (
-              <p>Base64 encoding converts binary data to a text format using 64 different ASCII characters. Commonly used for encoding data in URLs, cookies, and email attachments.</p>
-            )}
-            {encodingType === 'url' && (
-              <p>URL encoding (percent-encoding) replaces unsafe characters with %XX where XX is the hexadecimal value. Used to encode URLs and form data for safe transmission.</p>
-            )}
-            {encodingType === 'hex' && (
-              <p>Hexadecimal encoding represents each byte as two hexadecimal digits (00-FF). Commonly used for representing binary data in a human-readable format.</p>
-            )}
-            {encodingType === 'binary' && (
-              <p>Binary encoding represents each character as its 8-bit binary equivalent. Shows the raw binary representation of text data.</p>
-            )}
-          </div>
-        </div>
-      </div>
+          {/* Info panel */}
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="font-semibold mb-2">About {encodingType.toUpperCase()}</h4>
+              <p className="text-sm text-muted-foreground">{ENCODING_INFO[encodingType]}</p>
+            </CardContent>
+          </Card>
+        </CardContent>
+      </Card>
     </div>
   );
 };

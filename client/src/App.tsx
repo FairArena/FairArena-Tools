@@ -6,6 +6,9 @@ import { WebhookDumper } from './components/WebhookDumper.js';
 import { Guide } from './components/Guide.js';
 import { API_BASE } from './hooks/useTerminalSession.js';
 import React from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Key, FileJson, Hash, Fingerprint, Lock, Calculator, Globe, Radio, Mail } from 'lucide-react';
+import { Spinner } from './components/Loading.js';
 const DnsInspector = React.lazy(() => import('./components/DnsInspector'));
 const SSEListener = React.lazy(() => import('./components/SSEListener'));
 const EmailSecurityChecker = React.lazy(() => import('./components/EmailSecurityChecker'));
@@ -17,120 +20,90 @@ const UuidGenerator = React.lazy(() => import('./components/UuidGenerator'));
 const PasswordGenerator = React.lazy(() => import('./components/PasswordGenerator'));
 const NumberBaseConverter = React.lazy(() => import('./components/NumberBaseConverter'));
 import type { OsImage } from './types/index.js';
+import { ToastProvider } from './components/ToastProvider';
 import { Analytics } from "@vercel/analytics/react";
 
 type Tab = 'terminal' | 'api' | 'dev-tools' | 'network' | 'encoders' | 'webhook' | 'guide';
 
-type DevToolTab = 'jwt' | 'json' | 'hash' | 'uuid' | 'password' | 'number';
-type NetworkToolTab = 'dns' | 'sse' | 'email';
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center h-24 text-slate-500">
+    <Spinner className="w-5 h-5" />
+  </div>
+);
 
 function DevToolsTabs() {
-  const [activeTab, setActiveTab] = useState<DevToolTab>('jwt');
-
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg mb-4">
-        {[
-          { id: 'jwt' as DevToolTab, label: 'JWT', icon: '🔐' },
-          { id: 'json' as DevToolTab, label: 'JSON', icon: '📄' },
-          { id: 'hash' as DevToolTab, label: 'Hash', icon: '🔒' },
-          { id: 'uuid' as DevToolTab, label: 'UUID', icon: '🆔' },
-          { id: 'password' as DevToolTab, label: 'Password', icon: '🔑' },
-          { id: 'number' as DevToolTab, label: 'Numbers', icon: '🔢' },
-        ].map((tool) => (
-          <button
-            key={tool.id}
-            onClick={() => setActiveTab(tool.id)}
-            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-              activeTab === tool.id
-                ? 'bg-brand-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-            }`}
-          >
-            <span className="mr-1">{tool.icon}</span>
-            {tool.label}
-          </button>
-        ))}
+      <Tabs defaultValue="jwt" className="h-full flex flex-col min-h-0">
+      <TabsList className="h-auto shrink-0 bg-slate-900/60 border border-slate-700/40 rounded-xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar w-full mb-4">
+        <TabsTrigger value="jwt" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <Key className="w-3.5 h-3.5" />JWT
+        </TabsTrigger>
+        <TabsTrigger value="json" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <FileJson className="w-3.5 h-3.5" />JSON
+        </TabsTrigger>
+        <TabsTrigger value="hash" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm">
+          <Hash className="w-3.5 h-3.5" />Hash
+        </TabsTrigger>
+        <TabsTrigger value="uuid" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm">
+          <Fingerprint className="w-3.5 h-3.5" />UUID
+        </TabsTrigger>
+        <TabsTrigger value="password" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <Lock className="w-3.5 h-3.5" />Password
+        </TabsTrigger>
+        <TabsTrigger value="number" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <Calculator className="w-3.5 h-3.5" />Numbers
+        </TabsTrigger>
+      </TabsList>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <TabsContent value="jwt" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><JwtDecoder /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="json" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><JsonFormatter /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="hash" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><HashGenerator /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="uuid" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><UuidGenerator /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="password" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><PasswordGenerator /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="number" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><NumberBaseConverter /></React.Suspense>
+        </TabsContent>
       </div>
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'jwt' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <JwtDecoder />
-          </React.Suspense>
-        )}
-        {activeTab === 'json' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <JsonFormatter />
-          </React.Suspense>
-        )}
-        {activeTab === 'hash' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <HashGenerator />
-          </React.Suspense>
-        )}
-        {activeTab === 'uuid' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <UuidGenerator />
-          </React.Suspense>
-        )}
-        {activeTab === 'password' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <PasswordGenerator />
-          </React.Suspense>
-        )}
-        {activeTab === 'number' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <NumberBaseConverter />
-          </React.Suspense>
-        )}
-      </div>
-    </div>
+    </Tabs>
   );
 }
 
 function NetworkToolsTabs() {
-  const [activeTab, setActiveTab] = useState<NetworkToolTab>('dns');
-
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg mb-4">
-        {[
-          { id: 'dns' as NetworkToolTab, label: 'DNS', icon: '🌐' },
-          { id: 'sse' as NetworkToolTab, label: 'SSE', icon: '📡' },
-          { id: 'email' as NetworkToolTab, label: 'Email', icon: '📧' },
-        ].map((tool) => (
-          <button
-            key={tool.id}
-            onClick={() => setActiveTab(tool.id)}
-            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-              activeTab === tool.id
-                ? 'bg-brand-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-            }`}
-          >
-            <span className="mr-1">{tool.icon}</span>
-            {tool.label}
-          </button>
-        ))}
+      <Tabs defaultValue="dns" className="h-full flex flex-col min-h-0">
+      <TabsList className="h-auto shrink-0 bg-slate-900/60 border border-slate-700/40 rounded-xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar w-full mb-4">
+        <TabsTrigger value="dns" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <Globe className="w-3.5 h-3.5" />DNS
+        </TabsTrigger>
+        <TabsTrigger value="sse" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <Radio className="w-3.5 h-3.5" />SSE
+        </TabsTrigger>
+        <TabsTrigger value="email" className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30">
+          <Mail className="w-3.5 h-3.5" />Email Security
+        </TabsTrigger>
+      </TabsList>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <TabsContent value="dns" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><DnsInspector /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="sse" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><SSEListener /></React.Suspense>
+        </TabsContent>
+        <TabsContent value="email" className="h-full mt-0">
+          <React.Suspense fallback={<LoadingFallback />}><EmailSecurityChecker /></React.Suspense>
+        </TabsContent>
       </div>
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'dns' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <DnsInspector />
-          </React.Suspense>
-        )}
-        {activeTab === 'sse' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <SSEListener />
-          </React.Suspense>
-        )}
-        {activeTab === 'email' && (
-          <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
-            <EmailSecurityChecker />
-          </React.Suspense>
-        )}
-      </div>
-    </div>
+    </Tabs>
   );
 }
 
@@ -191,9 +164,10 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-dvh bg-surface-950">
-      <Analytics/>
-      <Navbar activeTab={tab} onTabChange={setTab} />
+    <ToastProvider>
+      <div className="flex flex-col min-h-dvh bg-surface-950">
+        <Analytics/>
+        <Navbar activeTab={tab} onTabChange={setTab} />
 
       {/* Subtle radial gradient backdrop */}
       <div className="pointer-events-none fixed inset-0 -z-10">
@@ -215,7 +189,7 @@ export default function App() {
           ) : tab === 'network' ? (
             <NetworkToolsTabs />
           ) : tab === 'encoders' ? (
-            <React.Suspense fallback={<div className="text-slate-400">Loading...</div>}>
+            <React.Suspense fallback={<div className="flex items-center justify-center h-64"><Spinner /></div>}>
               <EncoderDecoder />
             </React.Suspense>
           ) : tab === 'webhook' ? (
@@ -225,6 +199,7 @@ export default function App() {
           ) : null}
         </div>
       </main>
-    </div>
+      </div>
+    </ToastProvider>
   );
 }

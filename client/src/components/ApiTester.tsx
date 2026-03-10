@@ -8,7 +8,6 @@ import {
   Trash2,
   Send,
   Copy,
-  ChevronDown,
   CheckCircle2,
   XCircle,
   Clock,
@@ -23,6 +22,12 @@ import {
   EyeOff,
   Pencil,
 } from 'lucide-react';
+import { useToast } from './ToastProvider';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type {
   ApiRequest,
   ApiResponse,
@@ -874,7 +879,7 @@ function KVEditor({
   );
 }
 
-function Tab({
+function RespTabBtn({
   label,
   active,
   onClick,
@@ -888,19 +893,18 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all duration-300 border-b-2 -mb-px relative group rounded-t-lg ${active
-        ? 'border-brand-500 text-brand-400 bg-gradient-to-b from-brand-500/10 to-transparent shadow-sm'
-        : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-700/30 hover:shadow-md'
-      }`}
+      className={[
+        'relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap',
+        active
+          ? 'border-indigo-500 text-indigo-400'
+          : 'border-transparent text-slate-500 hover:text-slate-300',
+      ].join(' ')}
     >
       {label}
       {badge !== undefined && badge > 0 && (
-        <span className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none transition-all duration-200 group-hover:scale-110 ${active ? 'bg-brand-500/30 text-brand-300' : 'bg-slate-600 text-slate-300'}`}>
+        <span className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none ${active ? 'bg-indigo-500/25 text-indigo-300' : 'bg-slate-700 text-slate-400'}`}>
           {badge}
         </span>
-      )}
-      {!active && (
-        <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-brand-500 to-indigo-500 transition-all duration-300 group-hover:w-full rounded-full" />
       )}
     </button>
   );
@@ -1201,6 +1205,7 @@ function CurlImportPanel({ onImport }: { onImport: (parsed: Partial<ApiRequest>)
 // ---- Webhook panel -----------------------------------------------------------
 
 function WebhookPanel() {
+  const toast = useToast();
   const [webhookId, setWebhookId] = useState<string | null>(null);
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [copied, setCopied] = useState(false);
@@ -1263,6 +1268,7 @@ function WebhookPanel() {
     if (!webhookUrl) return;
     await navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
+    try { toast.show('Webhook URL copied'); } catch {}
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -1430,6 +1436,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
   const [tab, setTab] = useState<RespTab>('body');
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const toast = useToast();
   const [bodyFormat, setBodyFormat] = useState<'pretty' | 'raw'>('pretty');
   const [bodySearch, setBodySearch] = useState('');
   const [showLineNumbers, setShowLineNumbers] = useState(false);
@@ -1437,6 +1444,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
   const copy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
+    try { toast.show('Copied to clipboard'); } catch {}
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -1633,10 +1641,10 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
         </div>
       )}
 
-      <div className="flex gap-1 mb-3 border-b border-slate-700/40">
+      <div className="flex gap-0 mb-3 border-b border-slate-700/40 overflow-x-auto no-scrollbar">
         {(['body', 'headers', 'cookies', 'tests', 'raw', 'preview', 'curl'] as RespTab[]).map(
           (t) => (
-            <Tab
+            <RespTabBtn
               key={t}
               label={t === 'curl' ? 'cURL' : t.charAt(0).toUpperCase() + t.slice(1)}
               active={tab === t}
@@ -2051,7 +2059,6 @@ export function ApiTester() {
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showMethod, setShowMethod] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
   const [requestName, setRequestName] = useState('Untitled Request');
@@ -2230,291 +2237,285 @@ export function ApiTester() {
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 gap-3 h-full">
         {/* Top bar: history + name + URL */}
-        <div className="flex items-center gap-2">
-          {/* Hidden file input for collection import */}
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".json,.postman_collection.json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className={`p-2 rounded-xl border transition-all shrink-0 ${
-              showHistory
-                ? 'bg-brand-500/15 border-brand-500/40 text-brand-400'
-                : 'bg-slate-900/60 border-slate-700/50 text-slate-400 hover:text-slate-200'
-            }`}
-            title="Request history"
-            aria-label="Toggle history"
-          >
-            <History className="w-4 h-4" />
-          </button>
-
-          {/* Import Postman collection */}
-          <button
-            onClick={() => importFileRef.current?.click()}
-            className="p-2 rounded-xl border bg-slate-900/60 border-slate-700/50 text-slate-400 hover:text-slate-200 transition-all shrink-0"
-            title="Import Postman collection (.json)"
-          >
-            <Upload className="w-4 h-4" />
-          </button>
-
-          {/* Export collection */}
-          <button
-            onClick={handleExportCollection}
-            disabled={history.length === 0}
-            className="p-2 rounded-xl border bg-slate-900/60 border-slate-700/50 text-slate-400 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0"
-            title={
-              history.length === 0
-                ? 'No history to export'
-                : `Export ${history.length} request${history.length !== 1 ? 's' : ''} as Postman collection`
-            }
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3">
-            {/* Request name */}
-            <input
-              value={requestName}
-              onChange={(e) => setRequestName(e.target.value)}
-              className="w-full bg-transparent text-xs text-slate-500 hover:text-slate-300 focus:text-slate-200 focus:outline-none mb-2 transition-colors placeholder-slate-600"
-              placeholder="Request name..."
-            />
-
-            {/* URL bar */}
+        <Card>
+          <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              {/* Method selector */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={() => setShowMethod(!showMethod)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-bold font-mono transition-all duration-200 hover:shadow-md ${METHOD_COLORS[request.method]}`}
-                >
-                  {request.method}
-                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showMethod ? 'rotate-180' : ''}`} />
-                </button>
-                {showMethod && (
-                  <div className="absolute top-full mt-1 left-0 bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-xl shadow-2xl z-30 py-1 min-w-[110px] animate-in slide-in-from-top-2 duration-200">
-                    {HTTP_METHODS.map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => {
-                          setField('method', m);
-                          setShowMethod(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-sm font-bold font-mono hover:bg-slate-800 transition-all duration-150 hover:translate-x-1 ${request.method === m ? 'text-white bg-slate-800' : 'text-slate-400'}`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* URL input + autocomplete suggestions from history */}
-              <datalist id="fa-url-suggestions">
-                {urlSuggestions.map((url) => (
-                  <option key={url} value={url} />
-                ))}
-              </datalist>
+              {/* Hidden file input for collection import */}
               <input
-                type="text"
-                list="fa-url-suggestions"
-                value={request.url}
-                onChange={(e) => setField('url', e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="https://api.example.com/v1/endpoint"
-                className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200 hover:bg-slate-800/70"
+                ref={importFileRef}
+                type="file"
+                accept=".json,.postman_collection.json"
+                className="hidden"
+                onChange={handleImportFile}
               />
 
-              {/* Send button */}
-              <button
-                onClick={handleSend}
-                disabled={loading || !request.url.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg shadow-brand-600/20 hover:shadow-xl hover:shadow-brand-600/30 transform hover:scale-105 active:scale-95 shrink-0"
+              <Button
+                variant={showHistory ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowHistory(!showHistory)}
+                title="Request history"
+                aria-label="Toggle history"
               >
-                {loading ? (
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                )}
-                {loading ? 'Sending...' : 'Send'}
-              </button>
+                <History className="w-4 h-4" />
+              </Button>
+
+              {/* Import Postman collection */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => importFileRef.current?.click()}
+                title="Import Postman collection (.json)"
+              >
+                <Upload className="w-4 h-4" />
+              </Button>
+
+              {/* Export collection */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportCollection}
+                disabled={history.length === 0}
+                title={
+                  history.length === 0
+                    ? 'No history to export'
+                    : `Export ${history.length} request${history.length !== 1 ? 's' : ''} as Postman collection`
+                }
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+
+              <div className="flex-1 space-y-2">
+                {/* Request name */}
+                <Input
+                  value={requestName}
+                  onChange={(e) => setRequestName(e.target.value)}
+                  placeholder="Request name..."
+                  className="text-sm"
+                />
+
+                {/* URL bar */}
+                <div className="flex items-center gap-2">
+                  {/* Method selector */}
+                  <Select value={request.method} onValueChange={(value) => setField('method', value as HttpMethod)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HTTP_METHODS.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* URL input + autocomplete suggestions from history */}
+                  <datalist id="fa-url-suggestions">
+                    {urlSuggestions.map((url) => (
+                      <option key={url} value={url} />
+                    ))}
+                  </datalist>
+                  <Input
+                    type="text"
+                    list="fa-url-suggestions"
+                    value={request.url}
+                    onChange={(e) => setField('url', e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder="https://api.example.com/v1/endpoint"
+                    className="flex-1 font-mono"
+                  />
+
+                  {/* Send button */}
+                  <Button
+                    onClick={handleSend}
+                    disabled={loading || !request.url.trim()}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+                  >
+                    {loading ? (
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                    ) : (
+                      <Send className="w-4 h-4 mr-2" />
+                    )}
+                    {loading ? 'Sending...' : 'Send'}
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Request + Response panels */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
           {/* LEFT: Request builder */}
-          <div className="flex flex-col bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 min-h-0">
-            <div className="flex gap-0 mb-4 border-b border-slate-700/40 flex-wrap">
-              <Tab
-                label="Params"
-                active={activeTab === 'params'}
-                onClick={() => setActiveTab('params')}
-                badge={activeParamsCount}
-              />
-              <Tab
-                label="Headers"
-                active={activeTab === 'headers'}
-                onClick={() => setActiveTab('headers')}
-                badge={activeHeadersCount}
-              />
-              <Tab
-                label="Auth"
-                active={activeTab === 'auth'}
-                onClick={() => setActiveTab('auth')}
-                badge={request.auth.type !== 'none' ? 1 : 0}
-              />
-              <Tab
-                label="Body"
-                active={activeTab === 'body'}
-                onClick={() => setActiveTab('body')}
-                badge={request.bodyType !== 'none' ? 1 : 0}
-              />
-              <Tab
-                label="cURL"
-                active={activeTab === 'curl'}
-                onClick={() => setActiveTab('curl')}
-              />
-              <Tab
-                label="Code"
-                active={activeTab === 'code'}
-                onClick={() => setActiveTab('code')}
-              />
-              <Tab
-                label="Webhook"
-                active={activeTab === 'webhook'}
-                onClick={() => setActiveTab('webhook')}
-              />
-            </div>
+          <Card className="flex flex-col min-h-0">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ReqTab)}>
+              <TabsList className="grid w-full grid-cols-7">
+                <TabsTrigger value="params" className="relative">
+                  Params
+                  {activeParamsCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {activeParamsCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="headers" className="relative">
+                  Headers
+                  {activeHeadersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {activeHeadersCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="auth" className="relative">
+                  Auth
+                  {request.auth.type !== 'none' && (
+                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      1
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="body" className="relative">
+                  Body
+                  {request.bodyType !== 'none' && (
+                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      1
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="curl">cURL</TabsTrigger>
+                <TabsTrigger value="code">Code</TabsTrigger>
+                <TabsTrigger value="webhook">Webhook</TabsTrigger>
+              </TabsList>
 
-            <div className="flex-1 overflow-auto min-h-0">
-              {activeTab === 'params' && (
-                <KVEditor
-                  label="Query Parameters"
-                  rows={request.params}
-                  onChange={(rows) => setField('params', rows)}
-                  placeholderKey="param"
-                  placeholderVal="value"
-                />
-              )}
-              {activeTab === 'headers' && (
-                <KVEditor
-                  label="Request Headers"
-                  rows={request.headers}
-                  onChange={(rows) => setField('headers', rows)}
-                  keySuggestions={COMMON_HEADERS}
-                  placeholderKey="Header name"
-                  placeholderVal="Value"
-                />
-              )}
-              {activeTab === 'auth' && (
-                <AuthPanel auth={request.auth} onChange={(a) => setField('auth', a)} />
-              )}
-              {activeTab === 'body' && (
-                <BodyPanel
-                  bodyType={request.bodyType}
-                  body={request.body}
-                  formData={request.formData}
-                  onChange={(b) => setRequest((prev) => ({ ...prev, ...b }))}
-                />
-              )}
-              {activeTab === 'curl' && (
-                <div className="space-y-4">
-                  <div className="relative">
-                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
-                      cURL Preview
-                    </p>
-                    <pre className="p-3 bg-slate-800/60 rounded-xl text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">
-                      {curlPreview}
-                    </pre>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(curlPreview)}
-                      className="absolute top-8 right-2 p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-                      title="Copy"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-slate-300" />
-                    </button>
+              <CardContent className="flex-1 overflow-auto min-h-0 p-4">
+                <TabsContent value="params">
+                  <KVEditor
+                    label="Query Parameters"
+                    rows={request.params}
+                    onChange={(rows) => setField('params', rows)}
+                    placeholderKey="param"
+                    placeholderVal="value"
+                  />
+                </TabsContent>
+                <TabsContent value="headers">
+                  <KVEditor
+                    label="Request Headers"
+                    rows={request.headers}
+                    onChange={(rows) => setField('headers', rows)}
+                    keySuggestions={COMMON_HEADERS}
+                    placeholderKey="Header name"
+                    placeholderVal="Value"
+                  />
+                </TabsContent>
+                <TabsContent value="auth">
+                  <AuthPanel auth={request.auth} onChange={(a) => setField('auth', a)} />
+                </TabsContent>
+                <TabsContent value="body">
+                  <BodyPanel
+                    bodyType={request.bodyType}
+                    body={request.body}
+                    formData={request.formData}
+                    onChange={(b) => setRequest((prev) => ({ ...prev, ...b }))}
+                  />
+                </TabsContent>
+                <TabsContent value="curl">
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+                        cURL Preview
+                      </p>
+                      <pre className="p-3 bg-slate-800/60 rounded-xl text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">
+                        {curlPreview}
+                      </pre>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigator.clipboard.writeText(curlPreview)}
+                        className="absolute top-8 right-2"
+                        title="Copy"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    <div className="border-t border-slate-700/40 pt-4">
+                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
+                        Import from cURL
+                      </p>
+                      <CurlImportPanel onImport={handleImportCurl} />
+                    </div>
                   </div>
-                  <div className="border-t border-slate-700/40 pt-4">
-                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
-                      Import from cURL
-                    </p>
-                    <CurlImportPanel onImport={handleImportCurl} />
-                  </div>
-                </div>
-              )}
-              {activeTab === 'code' && (
-                <CodeGenerationPanel request={request} />
-              )}
-              {activeTab === 'webhook' && <WebhookPanel />}
-            </div>
-          </div>
+                </TabsContent>
+                <TabsContent value="code">
+                  <CodeGenerationPanel request={request} />
+                </TabsContent>
+                <TabsContent value="webhook">
+                  <WebhookPanel />
+                </TabsContent>
+              </CardContent>
+            </Tabs>
+          </Card>
 
           {/* RIGHT: Response */}
-          <div className="flex flex-col bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 min-h-0">
-            <div className="flex items-center gap-2 mb-3 shrink-0">
-              <h2 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Response
-              </h2>
-              {response && (
-                <div className="flex items-center gap-1.5">
-                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${response.status >= 200 && response.status < 300 ? 'bg-green-500/20 text-green-400' : response.status >= 400 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                    {response.status}
-                  </span>
-                  <span className="text-xs text-slate-500">
-                    {response.headers['content-length'] ? `${(parseInt(response.headers['content-length']) / 1024).toFixed(1)} KB` : ''}
-                  </span>
+          <Card className="flex flex-col min-h-0">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm">Response</CardTitle>
+                {response && (
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${response.status >= 200 && response.status < 300 ? 'bg-green-500/20 text-green-400' : response.status >= 400 ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                      {response.status}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {response.headers['content-length'] ? `${(parseInt(response.headers['content-length']) / 1024).toFixed(1)} KB` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="flex-1 overflow-auto min-h-0 p-4 pt-0">
+              {error && (
+                <div className="mb-3 flex items-start gap-2.5 p-4 bg-gradient-to-r from-red-500/10 to-red-600/5 border border-red-500/30 rounded-xl shrink-0 animate-in slide-in-from-top-2 duration-300">
+                  <div className="p-1 rounded-full bg-red-500/20">
+                    <XCircle className="w-4 h-4 text-red-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-300 mb-1">Request Failed</p>
+                    <p className="text-sm text-red-400/80">{error}</p>
+                  </div>
                 </div>
               )}
-            </div>
 
-            {error && (
-              <div className="mb-3 flex items-start gap-2.5 p-4 bg-gradient-to-r from-red-500/10 to-red-600/5 border border-red-500/30 rounded-xl shrink-0 animate-in slide-in-from-top-2 duration-300">
-                <div className="p-1 rounded-full bg-red-500/20">
-                  <XCircle className="w-4 h-4 text-red-400" />
+              {!response && !loading && !error && (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3 animate-fade-in">
+                  <div className="p-4 rounded-full bg-slate-800/30 animate-pulse">
+                    <Send className="w-8 h-8 opacity-40" />
+                  </div>
+                  <p className="text-sm font-medium">Ready to send your request</p>
+                  <p className="text-xs text-slate-500">Enter a URL and click Send</p>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-300 mb-1">Request Failed</p>
-                  <p className="text-sm text-red-400/80">{error}</p>
-                </div>
-              </div>
-            )}
+              )}
 
-            {!response && !loading && !error && (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3 animate-fade-in">
-                <div className="p-4 rounded-full bg-slate-800/30 animate-pulse">
-                  <Send className="w-8 h-8 opacity-40" />
+              {loading && (
+                <div className="flex-1 flex items-center justify-center gap-3 text-slate-500 animate-fade-in">
+                  <div className="relative">
+                    <span className="w-6 h-6 border-2 border-brand-500/20 border-t-brand-500 rounded-full animate-spin" />
+                    <div className="absolute inset-0 rounded-full bg-brand-500/10 animate-ping" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Sending request...</span>
+                    <span className="text-xs text-slate-600">Please wait</span>
+                  </div>
                 </div>
-                <p className="text-sm font-medium">Ready to send your request</p>
-                <p className="text-xs text-slate-500">Enter a URL and click Send</p>
-              </div>
-            )}
+              )}
 
-            {loading && (
-              <div className="flex-1 flex items-center justify-center gap-3 text-slate-500 animate-fade-in">
-                <div className="relative">
-                  <span className="w-6 h-6 border-2 border-brand-500/20 border-t-brand-500 rounded-full animate-spin" />
-                  <div className="absolute inset-0 rounded-full bg-brand-500/10 animate-ping" />
+              {response && !loading && (
+                <div className="flex-1 min-h-0">
+                  <ResponseViewer response={response} curlCmd={curlPreview} />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Sending request...</span>
-                  <span className="text-xs text-slate-600">Please wait</span>
-                </div>
-              </div>
-            )}
-
-            {response && !loading && (
-              <div className="flex-1 min-h-0">
-                <ResponseViewer response={response} curlCmd={curlPreview} />
-              </div>
-            )}
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

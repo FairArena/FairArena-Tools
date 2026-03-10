@@ -1,4 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Copy, Hash, AlertTriangle } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
 
@@ -71,8 +79,10 @@ export const HashGenerator: React.FC = () => {
     generateHash(input, algorithm);
   }, [input, algorithm, uppercase]);
 
+  const toast = useToast();
+
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).then(() => toast.show('Copied to clipboard'));
   };
 
   const loadExample = () => {
@@ -89,120 +99,128 @@ export const HashGenerator: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-lg">
-        <h3 className="text-white text-2xl font-semibold mb-6">Hash Generator</h3>
-
-        {/* Controls */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div>
-            <label className="block text-sm text-slate-300 mb-2">Algorithm</label>
-            <select
-              value={algorithm}
-              onChange={(e) => setAlgorithm(e.target.value as HashAlgorithm)}
-              className="bg-slate-800/40 text-white px-3 py-2 rounded-md"
-            >
-              {algorithms.map(algo => (
-                <option key={algo.value} value={algo.value}>
-                  {algo.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="uppercase"
-              checked={uppercase}
-              onChange={(e) => setUppercase(e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="uppercase" className="text-sm text-slate-300">
-              Uppercase
-            </label>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={loadExample}
-              className="px-3 py-2 bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
-            >
-              Load Example
-            </button>
-          </div>
-        </div>
-
-        {/* Algorithm Info */}
-        <div className="mb-6 bg-slate-800/40 p-4 rounded">
-          <h4 className="text-white font-semibold mb-2">
-            {algorithms.find(a => a.value === algorithm)?.label}
-          </h4>
-          <p className="text-sm text-slate-300">
-            {algorithms.find(a => a.value === algorithm)?.description}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Input */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-slate-300">Input Text</label>
-              <button
-                onClick={() => copyToClipboard(input)}
-                className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 hover:bg-slate-600"
-                disabled={!input}
-              >
-                Copy
-              </button>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Hash className="h-6 w-6" />
+            Hash Generator
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Controls */}
+          <div className="flex flex-wrap gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="algorithm">Algorithm</Label>
+              <Select value={algorithm} onValueChange={(value) => setAlgorithm(value as HashAlgorithm)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {algorithms.map(algo => (
+                    <SelectItem key={algo.value} value={algo.value}>
+                      {algo.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Enter text to hash..."
-              className="w-full bg-slate-800/40 text-white px-4 py-3 rounded-md font-mono text-sm h-32 resize-none"
-            />
-          </div>
 
-          {/* Output */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-slate-300">Hash Output</label>
-              <button
-                onClick={() => copyToClipboard(output)}
-                className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 hover:bg-slate-600"
-                disabled={!output}
-              >
-                Copy
-              </button>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="uppercase"
+                checked={uppercase}
+                onCheckedChange={(checked) => setUppercase(checked as boolean)}
+              />
+              <Label htmlFor="uppercase">Uppercase</Label>
             </div>
-            <textarea
-              value={output}
-              readOnly
-              placeholder="Hash will appear here..."
-              className="w-full bg-slate-800/40 text-white px-4 py-3 rounded-md font-mono text-sm h-32 resize-none"
-            />
-          </div>
-        </div>
 
-        {/* Hash Information */}
-        <div className="mt-6 bg-slate-800/40 p-4 rounded">
-          <h4 className="text-white font-semibold mb-3">Security Notes</h4>
-          <div className="text-sm text-slate-300 space-y-2">
-            <p>
-              <strong>MD5 & SHA-1:</strong> These algorithms are cryptographically broken and should not be used for security purposes.
-            </p>
-            <p>
-              <strong>SHA-256:</strong> Recommended for most applications requiring cryptographic security.
-            </p>
-            <p>
-              <strong>SHA-384 & SHA-512:</strong> Provide higher security but are slower to compute.
-            </p>
-            <p className="text-yellow-400">
-              ⚠️ Never use hashes for password storage. Use proper password hashing algorithms like bcrypt, scrypt, or Argon2.
-            </p>
+            <div>
+              <Button variant="outline" onClick={loadExample}>
+                Load Example
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+
+          {/* Algorithm Info */}
+          <Card>
+            <CardContent className="pt-6">
+              <h4 className="font-semibold mb-2">
+                {algorithms.find(a => a.value === algorithm)?.label}
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                {algorithms.find(a => a.value === algorithm)?.description}
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Input */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Input Text</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(input)}
+                  disabled={!input}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+              </div>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Enter text to hash..."
+                className="w-full bg-background text-foreground px-4 py-3 rounded-md font-mono text-sm h-32 resize-none border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {/* Output */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Hash Output</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(output)}
+                  disabled={!output}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+              </div>
+              <textarea
+                value={output}
+                readOnly
+                placeholder="Hash will appear here..."
+                className="w-full bg-background text-foreground px-4 py-3 rounded-md font-mono text-sm h-32 resize-none border border-input focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          {/* Security Notes */}
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p>
+                  <strong>MD5 & SHA-1:</strong> These algorithms are cryptographically broken and should not be used for security purposes.
+                </p>
+                <p>
+                  <strong>SHA-256:</strong> Recommended for most applications requiring cryptographic security.
+                </p>
+                <p>
+                  <strong>SHA-384 & SHA-512:</strong> Provide higher security but are slower to compute.
+                </p>
+                <p className="text-yellow-600 dark:text-yellow-400">
+                  ⚠️ Never use hashes for password storage. Use proper password hashing algorithms like bcrypt, scrypt, or Argon2.
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
     </div>
   );
 };
