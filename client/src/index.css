@@ -4,9 +4,15 @@
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
 @layer base {
-  *, *::before, *::after { box-sizing: border-box; }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-  html { font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11'; }
+  html {
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
 
   body {
     @apply bg-surface-950 text-slate-100 font-sans antialiased;
@@ -15,21 +21,48 @@
   }
 
   /* Custom scrollbar */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { @apply bg-transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-slate-600 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-500; }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
 
   /* Focus visible ring */
-  :focus-visible { @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-900; }
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-900;
+  }
 }
 
 /* ── Xterm overrides ────────────────────────────────────────────────────────── */
 /* Critical: width 100% + min-width 0 prevents the canvas from expanding the flex column */
-.xterm { padding: 0 !important; height: 100% !important; width: 100% !important; min-width: 0 !important; overflow: hidden !important; }
-.xterm-viewport { overflow-y: auto !important; width: 100% !important; }
-.xterm-screen { width: 100% !important; max-width: 100% !important; overflow: hidden !important; }
-.xterm-screen canvas { display: block; max-width: 100%; }
+.xterm {
+  padding: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.xterm-viewport {
+  overflow-y: auto !important;
+  width: 100% !important;
+}
+.xterm-screen {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+.xterm-screen canvas {
+  display: block;
+  max-width: 100%;
+}
 
 /* ── Utilities ──────────────────────────────────────────────────────────────── */
 @layer utilities {
@@ -38,19 +71,63 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
-  .border-subtle { @apply border border-slate-700/60; }
-  .text-muted { @apply text-slate-400; }
-  .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+  .border-subtle {
+    @apply border border-slate-700/60;
+  }
+  .text-muted {
+    @apply text-slate-400;
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── JSON syntax highlight ──────────────────────────────────────────────────── */
-.json-key  { color: #93c5fd; }  /* blue-300  */
-.json-str  { color: #86efac; }  /* green-300 */
-.json-num  { color: #fda4af; }  /* rose-300  */
-.json-bool { color: #c4b5fd; }  /* violet-300 */
-.json-null { color: #94a3b8; }  /* slate-400  */
+.json-key {
+  color: #93c5fd;
+} /* blue-300  */
+.json-str {
+  color: #86efac;
+} /* green-300 */
+.json-num {
+  color: #fda4af;
+} /* rose-300  */
+.json-bool {
+  color: #c4b5fd;
+} /* violet-300 */
+.json-null {
+  color: #94a3b8;
+} /* slate-400  */
+
+/* ── XML syntax highlight ───────────────────────────────────────────────────── */
+.xml-tag {
+  color: #60a5fa;
+} /* blue-400  */
+.xml-attr {
+  color: #93c5fd;
+} /* blue-300  */
+.xml-value {
+  color: #86efac;
+} /* green-300 */
+
+/* ── HTML syntax highlight ──────────────────────────────────────────────────── */
+.html-tag {
+  color: #f87171;
+} /* red-400   */
+.html-attr {
+  color: #93c5fd;
+} /* blue-300  */
+.html-value {
+  color: #86efac;
+} /* green-300 */
