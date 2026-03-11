@@ -36,7 +36,7 @@ import {
   overloadThreshold,
   killThreshold,
 } from './resources.js';
-import { arcjetMiddleware }from './arcjet.middleware.js';
+import { arcjetMiddleware } from './arcjet.middleware.js';
 
 // ---- Config ------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ app.use(
       useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "https://www.googletagmanager.com"],
+        scriptSrc: ["'self'", 'https://cdn.jsdelivr.net', 'https://www.googletagmanager.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         imgSrc: ["'self'", 'data:', 'https://fra.cloud.appwrite.io'],
         connectSrc: ["'self'", 'wss:', 'https://fra.cloud.appwrite.io'],
@@ -169,14 +169,35 @@ const domainSchema = z.object({
     .string()
     .min(1)
     .transform((s) => s.trim()),
-  types: z.array(z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'SRV', 'PTR', 'CAA', 'DNSKEY', 'DS', 'ALL'])).optional(),
+  types: z
+    .array(
+      z.enum([
+        'A',
+        'AAAA',
+        'CNAME',
+        'MX',
+        'TXT',
+        'NS',
+        'SOA',
+        'SRV',
+        'PTR',
+        'CAA',
+        'DNSKEY',
+        'DS',
+        'ALL',
+      ]),
+    )
+    .optional(),
   resolver: z.string().optional(),
 });
 
 async function performDnsLookups(domain: string, types?: string[], resolver?: string) {
   const out: Record<string, unknown> = {};
   // Node's DNS ResolveOptions requires a `ttl` boolean; include it explicitly
-  const resolverOptions: dns.ResolveOptions = { ttl: false, ...(resolver ? { server: resolver } : {}) };
+  const resolverOptions: dns.ResolveOptions = {
+    ttl: false,
+    ...(resolver ? { server: resolver } : {}),
+  };
 
   const doResolve = async (t: string) => {
     try {
@@ -190,17 +211,22 @@ async function performDnsLookups(domain: string, types?: string[], resolver?: st
       else if (t === 'SRV') {
         // SRV records need service._protocol.domain format
         // For now, try common services
-        const services = ['_http._tcp', '_https._tcp', '_sip._tcp', '_sip._udp', '_xmpp-client._tcp'];
+        const services = [
+          '_http._tcp',
+          '_https._tcp',
+          '_sip._tcp',
+          '_sip._udp',
+          '_xmpp-client._tcp',
+        ];
         const srvResults: any[] = [];
         for (const service of services) {
           try {
             const records = await dns.promises.resolveSrv(`${service}.${domain}`);
-            srvResults.push(...records.map(r => ({ ...r, service })));
+            srvResults.push(...records.map((r) => ({ ...r, service })));
           } catch {}
         }
         out.SRV = srvResults.length > 0 ? srvResults : [];
-      }
-      else if (t === 'PTR') {
+      } else if (t === 'PTR') {
         // For PTR, we need an IP address
         if (/^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
           const reversed = domain.split('.').reverse().join('.') + '.in-addr.arpa';
@@ -208,8 +234,7 @@ async function performDnsLookups(domain: string, types?: string[], resolver?: st
         } else {
           out.PTR = { error: 'PTR lookups require an IP address' };
         }
-      }
-      else if (t === 'CAA') {
+      } else if (t === 'CAA') {
         try {
           // CAA records might not be supported in all Node.js versions
           const records = await dns.promises.resolveCaa(domain);
@@ -217,8 +242,7 @@ async function performDnsLookups(domain: string, types?: string[], resolver?: st
         } catch (err) {
           out.CAA = { error: 'CAA records not supported or not found' };
         }
-      }
-      else if (t === 'DNSKEY' || t === 'DS') {
+      } else if (t === 'DNSKEY' || t === 'DS') {
         // DNSSEC records - these might require additional libraries
         out[t] = { error: 'DNSSEC records require special handling' };
       }
@@ -712,10 +736,33 @@ app.post('/api/request/run', curlLimiter, async (req, res) => {
 // ---- DNS propagation checker endpoint --------------------------------------
 app.post('/api/dns/propagation', dnsLimiter, async (req, res) => {
   try {
-    const payload = z.object({
-      domain: z.string().min(1).transform((s) => s.trim()),
-      types: z.array(z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'SRV', 'PTR', 'CAA', 'DNSKEY', 'DS', 'ALL'])).optional(),
-    }).parse(req.body);
+    const payload = z
+      .object({
+        domain: z
+          .string()
+          .min(1)
+          .transform((s) => s.trim()),
+        types: z
+          .array(
+            z.enum([
+              'A',
+              'AAAA',
+              'CNAME',
+              'MX',
+              'TXT',
+              'NS',
+              'SOA',
+              'SRV',
+              'PTR',
+              'CAA',
+              'DNSKEY',
+              'DS',
+              'ALL',
+            ]),
+          )
+          .optional(),
+      })
+      .parse(req.body);
 
     let domain = payload.domain;
     try {
@@ -942,7 +989,66 @@ app.use((_req, res: ExpressResponse) => res.status(404).json({ error: 'Not found
 // ---- HTTP + WebSocket Server -------------------------------------------------
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
+// Enable permessage-deflate so clients (and reverse proxies) that request
+// compression (permessage-deflate) can negotiate successfully.
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
+const clipSyncWss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
+
+// ---- ClipSync relay ---------------------------------------------------------
+
+const CLIPSYNC_MAX_ROOMS = Math.max(10, Number(process.env.CLIPSYNC_MAX_ROOMS ?? 500));
+const CLIPSYNC_MAX_PEERS = Math.max(2, Number(process.env.CLIPSYNC_MAX_PEERS ?? 10));
+const CLIPSYNC_ROOM_TTL_MS = Math.max(
+  60_000,
+  Number(process.env.CLIPSYNC_ROOM_TTL_MS ?? 4 * 60 * 60_000),
+);
+// ~5 MB raw file after base64 encoding (~1.37×) + JSON + AES overhead
+const CLIPSYNC_MSG_MAX_B64 = Math.max(
+  65_536,
+  Number(process.env.CLIPSYNC_MSG_MAX_B64 ?? 7_000_000),
+);
+
+interface ClipSyncPeer {
+  ws: WebSocket;
+  deviceId: string;
+  deviceName: string;
+  joinedAt: number;
+}
+interface ClipSyncRoom {
+  id: string;
+  peers: Map<string, ClipSyncPeer>;
+  createdAt: number;
+  lastActivityAt: number;
+}
+
+const clipRooms = new Map<string, ClipSyncRoom>();
+
+function clipPeerList(r: ClipSyncRoom) {
+  return [...r.peers.values()].map((p) => ({ deviceId: p.deviceId, deviceName: p.deviceName }));
+}
+
+function clipBroadcast(r: ClipSyncRoom, msg: object, excludeId?: string) {
+  const data = JSON.stringify(msg);
+  for (const p of r.peers.values()) {
+    if (p.deviceId === excludeId) continue;
+    if (p.ws.readyState === WebSocket.OPEN) {
+      try {
+        p.ws.send(data);
+      } catch {
+        /* closed */
+      }
+    }
+  }
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, r] of clipRooms.entries()) {
+    if (r.peers.size === 0 || now - r.lastActivityAt > CLIPSYNC_ROOM_TTL_MS) {
+      clipRooms.delete(id);
+    }
+  }
+}, 5 * 60_000).unref();
 
 // Track every live WebSocket so we can close them all on overload-kill
 const activeWs = new Set<WebSocket>();
@@ -981,7 +1087,20 @@ setInterval(
 ).unref();
 
 server.on('upgrade', (req, socket, head) => {
-  if (req.url?.split('?')[0] !== '/terminal') {
+  const upgradePath = req.url?.split('?')[0];
+
+  if (upgradePath === '/clipsync') {
+    const csOrigin = req.headers.origin ?? '';
+    if (NODE_ENV === 'production' && csOrigin && !ALLOWED_ORIGINS.includes(csOrigin)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    clipSyncWss.handleUpgrade(req, socket, head, (ws) => clipSyncWss.emit('connection', ws, req));
+    return;
+  }
+
+  if (upgradePath !== '/terminal') {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
     socket.destroy();
     return;
@@ -1333,6 +1452,188 @@ wss.on('connection', (ws, req) => {
   });
 });
 
+// ---- ClipSync WebSocket handler --------------------------------------------
+
+clipSyncWss.on('connection', (ws, req) => {
+  activeWs.add(ws);
+  ws.once('close', () => activeWs.delete(ws));
+  ws.once('error', () => activeWs.delete(ws));
+
+  const ip = clientIp(req as http.IncomingMessage);
+  void ip; // used for future per-IP rate limiting if needed
+
+  let room: ClipSyncRoom | null = null;
+  let deviceId = uuidv4();
+  let deviceName = 'Device';
+  let joined = false;
+
+  const hb = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) ws.ping();
+  }, 25_000);
+
+  let msgCount = 0;
+  const msgReset = setInterval(() => {
+    msgCount = 0;
+  }, 10_000);
+
+  const reply = (msg: object) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify(msg));
+      } catch {
+        /* closed */
+      }
+    }
+  };
+
+  ws.on('message', (raw) => {
+    if (raw instanceof Buffer && raw.length > CLIPSYNC_MSG_MAX_B64 + 256) {
+      reply({ type: 'error', message: 'Message too large.' });
+      return;
+    }
+    if (++msgCount > 120) {
+      reply({ type: 'error', message: 'Rate limit exceeded.' });
+      return;
+    }
+
+    let msg: any;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+
+    if (msg.type === 'ping') {
+      reply({ type: 'pong' });
+      return;
+    }
+
+    if (msg.type === 'join') {
+      if (joined) return;
+      const rid = String(msg.roomId ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .slice(0, 12);
+      if (rid.length < 4) {
+        reply({ type: 'error', message: 'Invalid room ID.' });
+        return;
+      }
+      deviceName = String(msg.deviceName ?? 'Device')
+        .replace(/[<>"&]/g, '')
+        .slice(0, 50);
+
+      let r = clipRooms.get(rid);
+      if (!r) {
+        if (clipRooms.size >= CLIPSYNC_MAX_ROOMS) {
+          reply({ type: 'error', message: 'Server room limit reached. Try again later.' });
+          return;
+        }
+        r = { id: rid, peers: new Map(), createdAt: Date.now(), lastActivityAt: Date.now() };
+        clipRooms.set(rid, r);
+      }
+      if (r.peers.size >= CLIPSYNC_MAX_PEERS) {
+        reply({ type: 'error', message: `Room is full (max ${CLIPSYNC_MAX_PEERS} devices).` });
+        return;
+      }
+
+      r.peers.set(deviceId, { ws, deviceId, deviceName, joinedAt: Date.now() });
+      room = r;
+      joined = true;
+      r.lastActivityAt = Date.now();
+
+      reply({
+        type: 'joined',
+        deviceId,
+        roomId: rid,
+        peerCount: r.peers.size,
+        peers: clipPeerList(r),
+      });
+      clipBroadcast(
+        r,
+        {
+          type: 'peer_joined',
+          deviceId,
+          deviceName,
+          peerCount: r.peers.size,
+          peers: clipPeerList(r),
+        },
+        deviceId,
+      );
+      return;
+    }
+
+    if (!joined || !room) {
+      reply({ type: 'error', message: 'Join a room first.' });
+      return;
+    }
+
+    room.lastActivityAt = Date.now();
+
+    if (msg.type === 'relay') {
+      const payload = String(msg.payload ?? '');
+      if (payload.length > CLIPSYNC_MSG_MAX_B64) {
+        reply({ type: 'error', message: 'Payload too large (max ~5 MB).' });
+        return;
+      }
+      // Blind relay — server never decrypts or stores the payload
+      clipBroadcast(
+        room,
+        { type: 'message', payload, sender: deviceId, senderName: deviceName, ts: Date.now() },
+        deviceId,
+      );
+      return;
+    }
+
+    // Unencrypted broadcast (used for ECDH public key exchange — server is blind router)
+    if (msg.type === 'signal') {
+      if (msg.data === undefined || msg.data === null) return;
+      clipBroadcast(room, { type: 'signal', from: deviceId, data: msg.data }, deviceId);
+      return;
+    }
+
+    // Direct message to a specific peer (used for ECDH-wrapped AES key delivery)
+    if (msg.type === 'dm') {
+      const toId = String(msg.to ?? '');
+      if (!toId || msg.data === undefined) return;
+      const target = room.peers.get(toId);
+      if (target && target.ws.readyState === WebSocket.OPEN) {
+        try {
+          target.ws.send(JSON.stringify({ type: 'dm', from: deviceId, data: msg.data }));
+        } catch {
+          /* closed */
+        }
+      }
+      return;
+    }
+  });
+
+  const cleanup = () => {
+    clearInterval(hb);
+    clearInterval(msgReset);
+    if (room) {
+      room.peers.delete(deviceId);
+      room.lastActivityAt = Date.now();
+      clipBroadcast(room, {
+        type: 'peer_left',
+        deviceId,
+        deviceName,
+        peerCount: room.peers.size,
+        peers: clipPeerList(room),
+      });
+      if (room.peers.size === 0) {
+        const rid = room.id;
+        setTimeout(() => {
+          const r = clipRooms.get(rid);
+          if (r?.peers.size === 0) clipRooms.delete(rid);
+        }, 60_000);
+      }
+    }
+  };
+  ws.on('close', cleanup);
+  ws.on('error', cleanup);
+});
+
 // ---- Graceful shutdown -------------------------------------------------------
 
 let isShuttingDown = false;
@@ -1365,6 +1666,7 @@ server.listen(PORT, () => {
   const port = (server.address() as AddressInfo | null)?.port ?? PORT;
   console.log(`\nFairArena API    -> http://localhost:${port}`);
   console.log(`Terminal WS      -> ws://localhost:${port}/terminal`);
+  console.log(`ClipSync WS      -> ws://localhost:${port}/clipsync`);
   console.log(
     `Docker           -> ${isDockerAvailable() ? 'available' : 'NOT FOUND (terminal disabled)'}`,
   );

@@ -4,6 +4,7 @@ import { TerminalPane } from './components/TerminalPane.js';
 import { ApiTester } from './components/ApiTester.js';
 import { WebhookDumper } from './components/WebhookDumper.js';
 import { Guide } from './components/Guide.js';
+import { ClipSync } from './components/ClipSync.js';
 import { API_BASE } from './hooks/useTerminalSession.js';
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,7 +34,7 @@ import type { OsImage } from './types/index.js';
 import { ToastProvider } from './components/ToastProvider';
 import { Analytics } from '@vercel/analytics/react';
 
-type Tab = 'terminal' | 'api' | 'dev-tools' | 'network' | 'encoders' | 'webhook' | 'guide';
+type Tab = 'terminal' | 'api' | 'dev-tools' | 'network' | 'encoders' | 'webhook' | 'guide' | 'clipsync';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-24 text-slate-500">
@@ -172,7 +173,14 @@ function NetworkToolsTabs() {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('terminal');
+  const [tab, setTab] = useState<Tab>(() => {
+    // Auto-select ClipSync if the URL hash contains a room link
+    if (typeof window !== 'undefined') {
+      if (/^#clipsync\/[a-z0-9]{6,12}\//.test(window.location.hash)) return 'clipsync';
+      if (window.matchMedia('(max-width: 639px)').matches) return 'api';
+    }
+    return 'terminal';
+  });
   const [osImages, setOsImages] = useState<OsImage[]>([]);
 
   // Fetch OS images from backend (falls back gracefully)
@@ -266,6 +274,8 @@ export default function App() {
               <WebhookDumper />
             ) : tab === 'guide' ? (
               <Guide />
+            ) : tab === 'clipsync' ? (
+              <ClipSync />
             ) : null}
           </div>
         </main>
