@@ -20,6 +20,8 @@
 ## ✨ Features
 
 ### 🖥️ Online Terminal
+> **Important:** The online terminal feature is disabled on the public/demo deployment due to server resource constraints. To use the terminal feature, self-host the backend on your VPS or locally (see **Quick Start**) and ensure the server has sufficient CPU/RAM available.
+
 - Isolated **Docker sandbox** per session — no host access, no shared state
 - Supports **Ubuntu, Debian, Alpine, Fedora, Arch Linux**
 - Session limits enforced per-IP via **Upstash Redis** (1 active session, 1 hr/day)
