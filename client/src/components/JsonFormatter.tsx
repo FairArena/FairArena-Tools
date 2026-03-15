@@ -17,6 +17,7 @@ export const JsonFormatter: React.FC = () => {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [parsed, setParsed] = useState<any>(null);
   const [indentSize, setIndentSize] = useState(2);
   const [sortKeys, setSortKeys] = useState(false);
   const toast = useToast();
@@ -25,22 +26,25 @@ export const JsonFormatter: React.FC = () => {
     if (!json.trim()) {
       setOutput('');
       setError(null);
+      setParsed(null);
       return;
     }
 
     try {
-      let parsed = JSON.parse(json);
+      let _parsed = JSON.parse(json);
 
       if (sortKeys) {
-        parsed = sortObjectKeys(parsed);
+        _parsed = sortObjectKeys(_parsed);
       }
 
-      const formatted = JSON.stringify(parsed, null, indentSize);
+      const formatted = JSON.stringify(_parsed, null, indentSize);
       setOutput(formatted);
+      setParsed(_parsed);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
       setOutput('');
+      setParsed(null);
     }
   };
 
@@ -244,7 +248,7 @@ export const JsonFormatter: React.FC = () => {
                       Minified Size
                     </span>
                     <div className="text-white text-lg font-semibold mt-1">
-                      {JSON.stringify(JSON.parse(input)).length} chars
+                        {parsed ? JSON.stringify(parsed).length : 0} chars
                     </div>
                   </div>
                   <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
@@ -252,10 +256,9 @@ export const JsonFormatter: React.FC = () => {
                       Compression
                     </span>
                     <div className="text-green-400 text-lg font-semibold mt-1">
-                      {(
-                        (1 - JSON.stringify(JSON.parse(input)).length / output.length) *
-                        100
-                      ).toFixed(1)}
+                        {parsed && output.length
+                          ? ((1 - JSON.stringify(parsed).length / output.length) * 100).toFixed(1)
+                          : '0.0'}
                       %
                     </div>
                   </div>
