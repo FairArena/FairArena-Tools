@@ -62,7 +62,7 @@ interface TestResponse {
 
 const RateLimitTester: React.FC = () => {
   const [config, setConfig] = useState<RequestConfig>({
-    url: 'https://httpbin.org/post',
+    url: 'https://httpbin.tools.fairarena.app/post',
     method: 'POST',
     headers: 'Content-Type: application/json',
     body: '{"test": "data"}',
@@ -111,7 +111,7 @@ const RateLimitTester: React.FC = () => {
         }
       });
 
-      const response = await fetch('/api/rate-limit/test', {
+      const response = await fetch(`${process.env.VITE_API_URL}/api/rate-limit/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -899,7 +899,7 @@ const RateLimitTester: React.FC = () => {
                     <strong>💡 Tip:</strong> Test with public APIs like:
                   </p>
                   <code className="block bg-slate-900 px-3 py-2 rounded text-xs text-slate-200">
-                    https://httpbin.org/post
+                    https://httpbin.tools.fairarena.app/post
                   </code>
                 </div>
               </div>

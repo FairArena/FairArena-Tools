@@ -9,6 +9,7 @@ import {
   BookOpen,
   Link2,
   Gauge,
+  Mail,
 } from 'lucide-react';
 
 type TabId =
@@ -18,6 +19,7 @@ type TabId =
   | 'network'
   | 'encoders'
   | 'webhook'
+  | 'tempmail'
   | 'guide'
   | 'clipsync'
   | 'rate-limit';
@@ -36,6 +38,7 @@ const NAV_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'rate-limit', label: 'Rate Limit', icon: <Gauge className="w-3.5 h-3.5 shrink-0" /> },
   { id: 'webhook', label: 'Webhooks', icon: <Webhook className="w-3.5 h-3.5 shrink-0" /> },
   { id: 'clipsync', label: 'ClipSync', icon: <Link2 className="w-3.5 h-3.5 shrink-0" /> },
+  { id: 'tempmail', label: 'tempmail', icon: <Mail className="w-3.5 h-3.5 shrink-0" /> },
   { id: 'guide', label: 'Guide', icon: <BookOpen className="w-3.5 h-3.5 shrink-0" /> },
 ];
 
@@ -70,7 +73,13 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
                 key={id}
                 role="tab"
                 aria-selected={activeTab === id}
-                onClick={() => onTabChange(id)}
+                onClick={() => {
+                  if (id === 'tempmail') {
+                    window.open('https://tempmail.fairarena.app', '_blank', 'noopener,noreferrer');
+                    return;
+                  }
+                  onTabChange(id);
+                }}
                 className={[
                   `${visibilityClass} relative items-center gap-1.5 px-3 h-full text-xs font-medium whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-sm`,
                   activeTab === id ? 'text-white' : 'text-slate-400 hover:text-slate-100',

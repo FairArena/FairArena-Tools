@@ -46,6 +46,7 @@ type Tab =
   | 'webhook'
   | 'guide'
   | 'clipsync'
+  | 'tempmail'
   | 'rate-limit';
 
 const LoadingFallback = () => (
