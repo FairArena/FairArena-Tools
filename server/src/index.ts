@@ -984,6 +984,308 @@ app.delete('/api/webhook/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- Rate Limit Tester endpoint -----------------------------------------------
+
+interface RateLimitTestRequest {
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
+  headers: Record<string, string>;
+  body?: string;
+  requestsPerMinute: number;
+  durationSeconds: number;
+  noCorsBypass?: boolean;
+}
+
+interface RateLimitTestResponse {
+  testId: string;
+  results: Array<{
+    requestNumber: number;
+    timestamp: number;
+    status: number | null;
+    latency: number;
+    success: boolean;
+    error?: string;
+    retryAfter?: number;
+  }>;
+  stats: {
+    // Basic counts
+    total: number;
+    successful: number;
+    failed: number;
+    successRate: number;
+
+    // Latency statistics
+    avgLatency: number;
+    minLatency: number;
+    maxLatency: number;
+    stdDevLatency: number;
+    varianceLatency: number;
+    medianLatency: number;
+    p25Latency: number;
+    p50Latency: number;
+    p75Latency: number;
+    p90Latency: number;
+    p95Latency: number;
+    p99Latency: number;
+    p99_9Latency: number;
+
+    // Throughput metrics
+    requestsPerSecond: number;
+    totalTestDuration: number;
+
+    // Error analysis
+    errorDistribution: Record<string, number>;
+    mostCommonError: { error: string; count: number } | null;
+
+    // Status codes
+    statusCodeDistribution: Record<number, number>;
+
+    // Outliers and trend
+    stdDevCount: number;
+    outlierCount: number;
+    outlierPercentage: number;
+    latencyTrend: 'improving' | 'stable' | 'degrading';
+
+    // Time-based metrics
+    timeToFirstFailureMs: number | null;
+    meanTimeToFailureMs: number | null;
+
+    // Header detection
+    retryAfterHeaders: number[];
+
+    // Response time histogram buckets (for charting)
+    latencyHistogram: Array<{ bucket: string; count: number }>;
+  };
+  duration: number;
+}
+
+const rateLimitTestLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  keyGenerator: (req) =>
+    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown',
+  skip: (req) => process.env.BYPASS_LIMITS === 'true',
+});
+
+app.post('/api/rate-limit/test', rateLimitTestLimiter, async (req, res: ExpressResponse) => {
+  try {
+    const payload = req.body as Partial<RateLimitTestRequest>;
+
+    // Validation
+    if (typeof payload.url !== 'string' || !payload.url.trim()) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    const method = payload.method || 'GET';
+    const headers = payload.headers || {};
+    const body = payload.body || '';
+    const requestsPerMinute = Math.max(1, Math.min(100, payload.requestsPerMinute || 10));
+    const durationSeconds = Math.max(1, Math.min(600, payload.durationSeconds || 60));
+
+    // Validate URL (basic SSRF protection)
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(payload.url);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return res.status(400).json({ error: 'Only HTTP(S) URLs are supported' });
+      }
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+
+    const results: RateLimitTestResponse['results'] = [];
+    const interval = 60000 / requestsPerMinute;
+    const totalRequests = Math.floor((durationSeconds * 1000) / interval);
+    const testId = crypto.randomBytes(8).toString('hex');
+
+    let requestNumber = 0;
+
+    for (let i = 0; i < totalRequests; i++) {
+      requestNumber++;
+      const startTime = performance.now();
+
+      try {
+        const fetchOptions: RequestInit = {
+          method,
+          headers: {
+            'User-Agent': 'FairArena-RateLimitTester/1.0',
+            ...headers,
+          },
+          signal: AbortSignal.timeout(30000), // 30 second timeout per request
+        };
+
+        if (body && method !== 'GET' && method !== 'HEAD') {
+          fetchOptions.body = body;
+        }
+
+        const response = await fetch(payload.url, fetchOptions);
+        const latency = performance.now() - startTime;
+        const retryAfter = response.headers.get('Retry-After');
+
+        results.push({
+          requestNumber,
+          timestamp: Date.now(),
+          status: response.status,
+          latency,
+          success: response.ok,
+          retryAfter: retryAfter ? parseInt(retryAfter, 10) : undefined,
+        });
+      } catch (error) {
+        const latency = performance.now() - startTime;
+        results.push({
+          requestNumber,
+          timestamp: Date.now(),
+          status: null,
+          latency,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // Wait before next request
+      if (i < totalRequests - 1) {
+        await new Promise((resolve) => setTimeout(resolve, interval));
+      }
+    }
+
+    // Calculate statistics
+    const successful = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
+    const latencies = results.map((r) => r.latency).sort((a, b) => a - b);
+    const statusCodeDist: Record<number, number> = {};
+    const errorDist: Record<string, number> = {};
+    const retryAfters: number[] = [];
+
+    results.forEach((result) => {
+      if (result.status !== null) {
+        statusCodeDist[result.status] = (statusCodeDist[result.status] || 0) + 1;
+      }
+      if (result.error) {
+        errorDist[result.error] = (errorDist[result.error] || 0) + 1;
+      }
+      if (result.retryAfter) {
+        retryAfters.push(result.retryAfter);
+      }
+    });
+
+    // Percentile calculation helper
+    const calculatePercentile = (arr: number[], p: number) => {
+      if (arr.length === 0) return 0;
+      const index = Math.ceil((p / 100) * arr.length) - 1;
+      return arr[Math.max(0, index)];
+    };
+
+    // Standard deviation and variance
+    const mean = latencies.length > 0 ? latencies.reduce((a, b) => a + b) / latencies.length : 0;
+    const variance =
+      latencies.length > 0
+        ? latencies.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / latencies.length
+        : 0;
+    const stdDev = Math.sqrt(variance);
+
+    // Outlier detection (> 2 standard deviations from mean)
+    const outliers = latencies.filter((l) => Math.abs(l - mean) > 2 * stdDev);
+    const outlierCount = outliers.length;
+    const outlierPercentage = (outlierCount / latencies.length) * 100;
+
+    // Trend detection (split first half vs second half latencies)
+    let trend: 'improving' | 'stable' | 'degrading' = 'stable';
+    if (latencies.length > 1) {
+      const mid = Math.floor(latencies.length / 2);
+      const firstHalf = latencies.slice(0, mid);
+      const secondHalf = latencies.slice(mid);
+      const firstHalfAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
+      const secondHalfAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
+      const diff = firstHalfAvg - secondHalfAvg;
+      if (diff > secondHalfAvg * 0.1)
+        trend = 'improving'; // 10% improvement
+      else if (diff < -secondHalfAvg * 0.1) trend = 'degrading'; // 10% degradation
+    }
+
+    // Time to first failure
+    const firstFailure = results.find((r) => !r.success);
+    const timeToFirstFailure = firstFailure ? firstFailure.timestamp - results[0].timestamp : null;
+
+    // Mean time to failure (average time between failures)
+    const failureIndices = results.map((r, i) => (r.success ? -1 : i)).filter((i) => i >= 0);
+    let meanTimeToFailure: number | null = null;
+    if (failureIndices.length > 0) {
+      let totalTimeBetweenFailures = 0;
+      for (let i = 1; i < failureIndices.length; i++) {
+        const idx1 = failureIndices[i - 1];
+        const idx2 = failureIndices[i];
+        totalTimeBetweenFailures += results[idx2].timestamp - results[idx1].timestamp;
+      }
+      meanTimeToFailure = totalTimeBetweenFailures / Math.max(1, failureIndices.length - 1);
+    }
+
+    // Latency histogram buckets (for charting)
+    const buckets = [0, 50, 100, 200, 500, 1000, 2000, 5000, Infinity];
+    const histogramBuckets: Array<{ bucket: string; count: number }> = [];
+    for (let i = 0; i < buckets.length - 1; i++) {
+      const bucketName =
+        buckets[i + 1] === Infinity ? `${buckets[i]}ms+` : `${buckets[i]}-${buckets[i + 1]}ms`;
+      const count = latencies.filter((l) => l >= buckets[i] && l < buckets[i + 1]).length;
+      histogramBuckets.push({ bucket: bucketName, count });
+    }
+
+    const mostCommonError =
+      Object.entries(errorDist).length > 0
+        ? Object.entries(errorDist).reduce((a, b) => (b[1] > a[1] ? b : a))
+        : null;
+
+    const totalDuration =
+      results.length > 0
+        ? (results[results.length - 1].timestamp - results[0].timestamp) / 1000
+        : 0;
+
+    const response: RateLimitTestResponse = {
+      testId,
+      results,
+      stats: {
+        total: results.length,
+        successful,
+        failed,
+        successRate: (successful / results.length) * 100,
+        avgLatency: mean,
+        minLatency: latencies.length > 0 ? latencies[0] : 0,
+        maxLatency: latencies.length > 0 ? latencies[latencies.length - 1] : 0,
+        stdDevLatency: stdDev,
+        varianceLatency: variance,
+        medianLatency: calculatePercentile(latencies, 50),
+        p25Latency: calculatePercentile(latencies, 25),
+        p50Latency: calculatePercentile(latencies, 50),
+        p75Latency: calculatePercentile(latencies, 75),
+        p90Latency: calculatePercentile(latencies, 90),
+        p95Latency: calculatePercentile(latencies, 95),
+        p99Latency: calculatePercentile(latencies, 99),
+        p99_9Latency: calculatePercentile(latencies, 99.9),
+        requestsPerSecond: totalDuration > 0 ? results.length / totalDuration : 0,
+        totalTestDuration: totalDuration,
+        errorDistribution: errorDist,
+        mostCommonError: mostCommonError
+          ? { error: mostCommonError[0], count: mostCommonError[1] }
+          : null,
+        statusCodeDistribution: statusCodeDist,
+        stdDevCount: outlierCount,
+        outlierCount,
+        outlierPercentage,
+        latencyTrend: trend,
+        timeToFirstFailureMs: timeToFirstFailure,
+        meanTimeToFailureMs: meanTimeToFailure,
+        retryAfterHeaders: [...new Set(retryAfters)].sort((a, b) => a - b),
+        latencyHistogram: histogramBuckets,
+      },
+      duration: results.length * interval,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Rate limit test error:', error);
+    res.status(500).json({ error: 'Failed to run rate limit test', details: String(error) });
+  }
+});
+
 app.use((_req, res: ExpressResponse) => res.status(404).json({ error: 'Not found' }));
 
 // ---- HTTP + WebSocket Server -------------------------------------------------

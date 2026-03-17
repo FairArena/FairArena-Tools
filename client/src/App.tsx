@@ -5,6 +5,8 @@ import { ApiTester } from './components/ApiTester.js';
 import { WebhookDumper } from './components/WebhookDumper.js';
 import { Guide } from './components/Guide.js';
 import { ClipSync } from './components/ClipSync.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { NotFound } from './components/NotFound.js';
 import { API_BASE } from './hooks/useTerminalSession.js';
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,11 +32,21 @@ const HashGenerator = React.lazy(() => import('./components/HashGenerator'));
 const UuidGenerator = React.lazy(() => import('./components/UuidGenerator'));
 const PasswordGenerator = React.lazy(() => import('./components/PasswordGenerator'));
 const NumberBaseConverter = React.lazy(() => import('./components/NumberBaseConverter'));
+import RateLimitTester from './components/RateLimitTester';
 import type { OsImage } from './types/index.js';
-import { ToastProvider } from './components/ToastProvider';
+import ToastProvider from './components/ToastProvider';
 import { Analytics } from '@vercel/analytics/react';
 
-type Tab = 'terminal' | 'api' | 'dev-tools' | 'network' | 'encoders' | 'webhook' | 'guide' | 'clipsync';
+type Tab =
+  | 'terminal'
+  | 'api'
+  | 'dev-tools'
+  | 'network'
+  | 'encoders'
+  | 'webhook'
+  | 'guide'
+  | 'clipsync'
+  | 'rate-limit';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-24 text-slate-500">
@@ -236,50 +248,56 @@ export default function App() {
   }, []);
 
   return (
-    <ToastProvider>
-      <div className="flex flex-col min-h-dvh bg-surface-950">
-        <Analytics />
-        <Navbar activeTab={tab} onTabChange={setTab} />
+    <ErrorBoundary>
+      <ToastProvider>
+        <div className="flex flex-col min-h-dvh bg-surface-950">
+          <Analytics />
+          <Navbar activeTab={tab} onTabChange={setTab} />
 
-        {/* Subtle radial gradient backdrop */}
-        <div className="pointer-events-none fixed inset-0 -z-10">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-indigo-600/4 rounded-full blur-3xl" />
-          {tab === 'webhook' && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-violet-600/3 rounded-full blur-3xl" />
-          )}
-        </div>
-
-        <main className="flex-1 flex flex-col min-h-0 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 py-5">
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {tab === 'terminal' ? (
-              <TerminalPane osImages={osImages} />
-            ) : tab === 'api' ? (
-              <ApiTester />
-            ) : tab === 'dev-tools' ? (
-              <DevToolsTabs />
-            ) : tab === 'network' ? (
-              <NetworkToolsTabs />
-            ) : tab === 'encoders' ? (
-              <React.Suspense
-                fallback={
-                  <div className="flex items-center justify-center h-64">
-                    <Spinner />
-                  </div>
-                }
-              >
-                <EncoderDecoder />
-              </React.Suspense>
-            ) : tab === 'webhook' ? (
-              <WebhookDumper />
-            ) : tab === 'guide' ? (
-              <Guide />
-            ) : tab === 'clipsync' ? (
-              <ClipSync />
-            ) : null}
+          {/* Subtle radial gradient backdrop */}
+          <div className="pointer-events-none fixed inset-0 -z-10">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-indigo-600/4 rounded-full blur-3xl" />
+            {tab === 'webhook' && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-violet-600/3 rounded-full blur-3xl" />
+            )}
           </div>
-        </main>
-      </div>
-    </ToastProvider>
+
+          <main className="flex-1 flex flex-col min-h-0 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 py-5">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {tab === 'terminal' ? (
+                <TerminalPane osImages={osImages} />
+              ) : tab === 'api' ? (
+                <ApiTester />
+              ) : tab === 'dev-tools' ? (
+                <DevToolsTabs />
+              ) : tab === 'network' ? (
+                <NetworkToolsTabs />
+              ) : tab === 'encoders' ? (
+                <React.Suspense
+                  fallback={
+                    <div className="flex items-center justify-center h-64">
+                      <Spinner />
+                    </div>
+                  }
+                >
+                  <EncoderDecoder />
+                </React.Suspense>
+              ) : tab === 'webhook' ? (
+                <WebhookDumper />
+              ) : tab === 'guide' ? (
+                <Guide />
+              ) : tab === 'clipsync' ? (
+                <ClipSync />
+              ) : tab === 'rate-limit' ? (
+                <RateLimitTester />
+              ) : (
+                <NotFound />
+              )}
+            </div>
+          </main>
+        </div>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
