@@ -111,7 +111,8 @@ const RateLimitTester: React.FC = () => {
         }
       });
 
-      const response = await fetch(`${process.env.VITE_API_URL}/api/rate-limit/test`, {
+      const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
+      const response = await fetch(`${apiBase.replace(/\/$/, '')}/api/rate-limit/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

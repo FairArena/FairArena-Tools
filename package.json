@@ -17,11 +17,12 @@
     ]
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
     "husky": "^9.1.7",
-    "lint-staged": "^15.5.2",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.1"
   },
   "dependencies": {
-    "commitlint": "^20.4.3"
+    "commitlint": "^20.5.0"
   }
 }
