@@ -725,9 +725,9 @@ app.post('/api/request/run', curlLimiter, async (req, res) => {
       redirected: fetchRes?.redirected ?? false,
       finalUrl: fetchRes?.url && fetchRes.url !== url ? fetchRes.url : undefined,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError)
-      return res.status(400).json({ error: err.errors[0]?.message ?? 'Invalid request' });
+      return res.status(400).json({ error: err.issues?.[0]?.message ?? 'Invalid request' });
     console.error('[proxy]', (err as Error).message);
     return res.status(500).json({ error: 'Unexpected server error.' });
   }
@@ -796,9 +796,9 @@ app.post('/api/dns/propagation', dnsLimiter, async (req, res) => {
     }
 
     return res.json({ domain, types, results });
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError)
-      return res.status(400).json({ error: err.errors.map((e) => e.message).join('; ') });
+      return res.status(400).json({ error: err.issues.map((e: z.ZodIssue) => e.message).join('; ') });
     return res.status(500).json({ error: (err as Error).message });
   }
 });
@@ -833,9 +833,9 @@ app.post('/api/dns/resolve', dnsLimiter, async (req, res) => {
     const result = await performDnsLookups(domain, payload.types, payload.resolver);
     dnsCache.set(cacheKey, { ts: Date.now(), result });
     return res.json({ cached: false, data: result });
-  } catch (err) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError)
-      return res.status(400).json({ error: err.errors.map((e) => e.message).join('; ') });
+      return res.status(400).json({ error: err.issues.map((e: z.ZodIssue) => e.message).join('; ') });
     return res.status(500).json({ error: (err as Error).message });
   }
 });
@@ -1300,10 +1300,15 @@ const clipSyncWss = new WebSocketServer({ noServer: true, perMessageDeflate: tru
 
 const CLIPSYNC_MAX_ROOMS = Math.max(10, Number(process.env.CLIPSYNC_MAX_ROOMS ?? 500));
 const CLIPSYNC_MAX_PEERS = Math.max(2, Number(process.env.CLIPSYNC_MAX_PEERS ?? 10));
-const CLIPSYNC_ROOM_TTL_MS = Math.max(
+const CLIPSYNC_ROOM_INACTIVE_TTL_MS = Math.max(
   60_000,
-  Number(process.env.CLIPSYNC_ROOM_TTL_MS ?? 4 * 60 * 60_000),
+  Number(process.env.CLIPSYNC_ROOM_INACTIVE_TTL_MS ?? 10 * 60_000),
 );
+const CLIPSYNC_ROOM_TOTAL_TTL_MS = Math.max(
+  5 * 60_000,
+  Number(process.env.CLIPSYNC_ROOM_TOTAL_TTL_MS ?? 30 * 60_000),
+);
+const CLIPSYNC_MAX_ROOMS_PER_IP = Math.max(1, Number(process.env.CLIPSYNC_MAX_ROOMS_PER_IP ?? 2));
 // ~5 MB raw file after base64 encoding (~1.37×) + JSON + AES overhead
 const CLIPSYNC_MSG_MAX_B64 = Math.max(
   65_536,
@@ -1318,12 +1323,32 @@ interface ClipSyncPeer {
 }
 interface ClipSyncRoom {
   id: string;
+  joinCode: string;
   peers: Map<string, ClipSyncPeer>;
+  // deviceId of the room owner (creator)
+  ownerDeviceId?: string;
+  // pending join requests: deviceId -> peer (ws connected but not yet accepted)
+  pendingRequests?: Map<string, ClipSyncPeer>;
+  // room control flags
+  acceptingNewJoins: boolean;
+  displayCode?: string; // optional visual display code (owner can rotate)
+  // rate limiting: track join attempts per IP for anti-brute-force
+  joinAttempts?: Map<string, number[]>;
   createdAt: number;
   lastActivityAt: number;
 }
 
 const clipRooms = new Map<string, ClipSyncRoom>();
+const clipRoomByCode = new Map<string, string>();
+const clipRoomsByIp = new Map<string, Set<string>>();
+
+function generateClipJoinCode(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const arr = crypto.randomBytes(6);
+  let out = '';
+  for (let i = 0; i < 6; i += 1) out += chars[arr[i] % chars.length];
+  return out;
+}
 
 function clipPeerList(r: ClipSyncRoom) {
   return [...r.peers.values()].map((p) => ({ deviceId: p.deviceId, deviceName: p.deviceName }));
@@ -1343,11 +1368,38 @@ function clipBroadcast(r: ClipSyncRoom, msg: object, excludeId?: string) {
   }
 }
 
+function clipNotifyOwnerPendingRemoved(
+  r: ClipSyncRoom,
+  pendingDeviceId: string,
+  reason: 'left' | 'approved' | 'rejected' | 'missing' = 'left',
+) {
+  if (!r.ownerDeviceId) return;
+  const owner = r.peers.get(r.ownerDeviceId);
+  if (!owner || owner.ws.readyState !== WebSocket.OPEN) return;
+  try {
+    owner.ws.send(
+      JSON.stringify({
+        type: 'pending_request_removed',
+        deviceId: pendingDeviceId,
+        reason,
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [id, r] of clipRooms.entries()) {
-    if (r.peers.size === 0 || now - r.lastActivityAt > CLIPSYNC_ROOM_TTL_MS) {
+    const isInactive = now - r.lastActivityAt > CLIPSYNC_ROOM_INACTIVE_TTL_MS;
+    const isExpired = now - r.createdAt > CLIPSYNC_ROOM_TOTAL_TTL_MS;
+    if (r.peers.size === 0 || isInactive || isExpired) {
+      clipRoomByCode.delete(r.joinCode);
       clipRooms.delete(id);
+      for (const set of clipRoomsByIp.values()) {
+        set.delete(id);
+      }
     }
   }
 }, 5 * 60_000).unref();
@@ -1762,12 +1814,12 @@ clipSyncWss.on('connection', (ws, req) => {
   ws.once('error', () => activeWs.delete(ws));
 
   const ip = clientIp(req as http.IncomingMessage);
-  void ip; // used for future per-IP rate limiting if needed
 
   let room: ClipSyncRoom | null = null;
   let deviceId = uuidv4();
   let deviceName = 'Device';
   let joined = false;
+  let isPending = false; // Track if peer is pending approval (can signal but not send messages)
 
   const hb = setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) ws.ping();
@@ -1812,42 +1864,127 @@ clipSyncWss.on('connection', (ws, req) => {
 
     if (msg.type === 'join') {
       if (joined) return;
-      const rid = String(msg.roomId ?? '')
+      const now = Date.now();
+      const roomCode = String(msg.roomId ?? '')
         .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '')
-        .slice(0, 12);
-      if (rid.length < 4) {
-        reply({ type: 'error', message: 'Invalid room ID.' });
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 6);
+      if (!/^[A-Z0-9]{6}$/.test(roomCode)) {
+        reply({ type: 'error', message: 'Invalid room code. Use a 6-character code.' });
         return;
       }
       deviceName = String(msg.deviceName ?? 'Device')
         .replace(/[<>"&]/g, '')
         .slice(0, 50);
 
-      let r = clipRooms.get(rid);
+      const resolvedRoomId = clipRoomByCode.get(roomCode);
+      let r = resolvedRoomId ? clipRooms.get(resolvedRoomId) : undefined;
       if (!r) {
+        const activeRoomsForIp = clipRoomsByIp.get(ip) ?? new Set<string>();
+        if (activeRoomsForIp.size >= CLIPSYNC_MAX_ROOMS_PER_IP) {
+          reply({ type: 'error', message: `You can host up to ${CLIPSYNC_MAX_ROOMS_PER_IP} active rooms from this IP.` });
+          return;
+        }
         if (clipRooms.size >= CLIPSYNC_MAX_ROOMS) {
           reply({ type: 'error', message: 'Server room limit reached. Try again later.' });
           return;
         }
-        r = { id: rid, peers: new Map(), createdAt: Date.now(), lastActivityAt: Date.now() };
-        clipRooms.set(rid, r);
+        const internalId = uuidv4();
+        r = {
+          id: internalId,
+          joinCode: roomCode,
+          peers: new Map(),
+          acceptingNewJoins: true,
+          displayCode: roomCode,
+          createdAt: Date.now(),
+          lastActivityAt: Date.now(),
+        };
+        clipRooms.set(internalId, r);
+        clipRoomByCode.set(roomCode, internalId);
+        activeRoomsForIp.add(internalId);
+        clipRoomsByIp.set(ip, activeRoomsForIp);
       }
+
+      // Check if room is accepting new joins
+      if (!r.acceptingNewJoins && r.ownerDeviceId && r.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Room is not accepting new members at this time.' });
+        return;
+      }
+
+      // Rate limiting: track join attempts per IP (anti-brute-force)
+      const clientIp = ip;
+      if (!r.joinAttempts) r.joinAttempts = new Map();
+      const attempts = r.joinAttempts.get(clientIp) ?? [];
+      const recentAttempts = attempts.filter((t) => now - t < 60_000); // keep last 60s
+      if (recentAttempts.length >= 5) {
+        reply({ type: 'error', message: 'Too many join attempts. Try again in 60 seconds.' });
+        return;
+      }
+      recentAttempts.push(now);
+      r.joinAttempts.set(clientIp, recentAttempts);
       if (r.peers.size >= CLIPSYNC_MAX_PEERS) {
         reply({ type: 'error', message: `Room is full (max ${CLIPSYNC_MAX_PEERS} devices).` });
         return;
       }
 
-      r.peers.set(deviceId, { ws, deviceId, deviceName, joinedAt: Date.now() });
-      room = r;
-      joined = true;
+      // Determine acceptance: creator becomes owner and is auto-accepted.
+      const isCreator = !r.ownerDeviceId;
+      if (isCreator) {
+        r.ownerDeviceId = deviceId;
+      }
+
+      const hasKey = Boolean(msg.hasKey);
+      const ecdhPub = msg.ecdhPub === undefined ? null : String(msg.ecdhPub);
+
+      // SECURITY: Reject key-based invites — only PIN-mode joins allowed
+      if (hasKey) {
+        reply({ type: 'error', message: 'Key-based invites are no longer supported. Use PIN-only mode.' });
+        return;
+      }
+      if (ecdhPub && ecdhPub.length > 2048) {
+        reply({ type: 'error', message: 'Invalid key exchange payload.' });
+        return;
+      }
+
+      // If there is no owner online yet, accept immediately (first peer becomes owner).
+      // Otherwise create a pending request and notify the owner.
+      const ownerPeer = r.ownerDeviceId ? r.peers.get(r.ownerDeviceId) : undefined;
+      if (!ownerPeer || ownerPeer.ws.readyState !== WebSocket.OPEN || r.ownerDeviceId === deviceId) {
+        r.peers.set(deviceId, { ws, deviceId, deviceName, joinedAt: Date.now() });
+        room = r;
+        joined = true;
+      } else {
+        // ensure pendingRequests map exists
+        if (!r.pendingRequests) r.pendingRequests = new Map();
+        r.pendingRequests.set(deviceId, { ws, deviceId, deviceName, joinedAt: Date.now() });
+        room = r;
+        joined = false;
+        isPending = true;
+
+        // Notify the owner about the join request (include ECDH pubKey if provided)
+        try {
+          ownerPeer.ws.send(
+            JSON.stringify({ type: 'join_request', from: deviceId, deviceName, ecdhPub }),
+          );
+        } catch {
+          /* ignore */
+        }
+
+        // Tell requester they are pending approval
+        reply({ type: 'pending', message: 'Awaiting owner approval.' });
+        return;
+      }
       r.lastActivityAt = Date.now();
 
       reply({
         type: 'joined',
         deviceId,
-        roomId: rid,
+        roomId: r.id,
+        roomCode: r.joinCode,
+        ownerDeviceId: r.ownerDeviceId,
+        displayCode: r.displayCode,
+        acceptingNewJoins: r.acceptingNewJoins,
         peerCount: r.peers.size,
         peers: clipPeerList(r),
       });
@@ -1865,7 +2002,16 @@ clipSyncWss.on('connection', (ws, req) => {
       return;
     }
 
-    if (!joined || !room) {
+    if (!room) {
+      reply({ type: 'error', message: 'Join a room first.' });
+      return;
+    }
+
+    // Check if peer is actually in the room (source of truth)
+    // Accounts for peers that were approved and moved from pending to peers
+    const isActuallyInRoom = room.peers.has(deviceId) || isPending;
+
+    if (!isActuallyInRoom) {
       reply({ type: 'error', message: 'Join a room first.' });
       return;
     }
@@ -1873,7 +2019,21 @@ clipSyncWss.on('connection', (ws, req) => {
     room.lastActivityAt = Date.now();
 
     if (msg.type === 'relay') {
+      // Only fully joined peers can send messages; pending peers cannot
+      // Update joined flag if peer is in peers list (handles approval transition)
+      if (room.peers.has(deviceId) && !joined) {
+        joined = true;
+        isPending = false;
+      }
+      if (!joined) {
+        reply({ type: 'error', message: 'You must be approved by the owner to send messages.' });
+        return;
+      }
       const payload = String(msg.payload ?? '');
+      if (!payload || payload.length < 8) {
+        reply({ type: 'error', message: 'Invalid payload.' });
+        return;
+      }
       if (payload.length > CLIPSYNC_MSG_MAX_B64) {
         reply({ type: 'error', message: 'Payload too large (max ~5 MB).' });
         return;
@@ -1887,18 +2047,110 @@ clipSyncWss.on('connection', (ws, req) => {
       return;
     }
 
-    // Unencrypted broadcast (used for ECDH public key exchange — server is blind router)
-    if (msg.type === 'signal') {
-      if (msg.data === undefined || msg.data === null) return;
-      clipBroadcast(room, { type: 'signal', from: deviceId, data: msg.data }, deviceId);
+    // Owner approval messages
+    if (msg.type === 'approve') {
+      const toId = String(msg.to ?? '');
+      if (!room || room.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Only the room owner can approve requests.' });
+        return;
+      }
+      const pending = room.pendingRequests?.get(toId);
+      if (!pending) {
+        reply({ type: 'pending_request_removed', deviceId: toId, reason: 'missing' });
+        return;
+      }
+      // Move pending into peers
+      room.pendingRequests?.delete(toId);
+      clipNotifyOwnerPendingRemoved(room, toId, 'approved');
+      room.peers.set(toId, pending);
+      // Notify the newly-joined peer
+      try {
+        pending.ws.send(
+          JSON.stringify({ 
+            type: 'joined', 
+            deviceId: toId, 
+            roomId: room.id, 
+            roomCode: room.joinCode,
+            ownerDeviceId: room.ownerDeviceId,
+            displayCode: room.displayCode,
+            acceptingNewJoins: room.acceptingNewJoins,
+            peerCount: room.peers.size, 
+            peers: clipPeerList(room) 
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+      // Broadcast peer_joined to ALL existing peers (including owner)
+      const allPeers = [...room.peers.values()];
+      const joinedMsg = JSON.stringify({ type: 'peer_joined', deviceId: toId, deviceName: pending.deviceName, peerCount: room.peers.size, peers: clipPeerList(room) });
+      for (const p of allPeers) {
+        if (p.deviceId !== toId && p.ws.readyState === WebSocket.OPEN) {
+          try {
+            p.ws.send(joinedMsg);
+          } catch {}
+        }
+      }
+      reply({ type: 'approved', message: `Approved ${pending.deviceName}` });
       return;
     }
 
-    // Direct message to a specific peer (used for ECDH-wrapped AES key delivery)
+    if (msg.type === 'reject') {
+      const toId = String(msg.to ?? '');
+      if (!room || room.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Only the room owner can reject requests.' });
+        return;
+      }
+      const pending = room.pendingRequests?.get(toId);
+      if (!pending) {
+        reply({ type: 'pending_request_removed', deviceId: toId, reason: 'missing' });
+        return;
+      }
+      room.pendingRequests?.delete(toId);
+      clipNotifyOwnerPendingRemoved(room, toId, 'rejected');
+      try {
+        pending.ws.send(JSON.stringify({ type: 'rejected', message: 'Owner rejected join request.' }));
+        pending.ws.close();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    // Unencrypted broadcast (used for ECDH public key exchange — server is blind router)
+    // Both pending and joined peers can signal
+    if (msg.type === 'signal') {
+      if (msg.data === undefined || msg.data === null) return;
+      // If this is a key request, forward only to the owner to avoid leaking
+      // the ECDH public key to all participants. Otherwise relay as before.
+      try {
+        const d = msg.data as any;
+        if (d && d.meta === 'key_req' && room && room.ownerDeviceId) {
+          const owner = room.peers.get(room.ownerDeviceId);
+          if (owner && owner.ws.readyState === WebSocket.OPEN) {
+            owner.ws.send(JSON.stringify({ type: 'signal', from: deviceId, data: msg.data }));
+            return;
+          }
+        }
+      } catch {}
+      // Broadcast to only peers, not pending joiners
+      const allPeers = room.peers.values();
+      for (const p of allPeers) {
+        if (p.deviceId !== deviceId && p.ws.readyState === WebSocket.OPEN) {
+          try {
+            p.ws.send(JSON.stringify({ type: 'signal', from: deviceId, data: msg.data }));
+          } catch {}
+        }
+      }
+      return;
+    }
+
+    // Direct message to a specific peer (used for ECDH-wrapped AES key delivery or key rotation)
     if (msg.type === 'dm') {
       const toId = String(msg.to ?? '');
       if (!toId || msg.data === undefined) return;
-      const target = room.peers.get(toId);
+      // DMs can be sent to peers or pending peers (for key wrapping)
+      const target = room.peers.get(toId) || room.pendingRequests?.get(toId);
       if (target && target.ws.readyState === WebSocket.OPEN) {
         try {
           target.ws.send(JSON.stringify({ type: 'dm', from: deviceId, data: msg.data }));
@@ -1908,13 +2160,130 @@ clipSyncWss.on('connection', (ws, req) => {
       }
       return;
     }
+
+    // Key rotation: owner broadcasts new wrapped key to all peers
+    if (msg.type === 'rotate_key') {
+      if (!room || room.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Only the room owner can rotate the key.' });
+        return;
+      }
+      if (!msg.data) return;
+      // Broadcast the new wrapped key to all peers
+      const rotationMsg = JSON.stringify({ type: 'key_rotated', from: deviceId, data: msg.data });
+      for (const p of room.peers.values()) {
+        if (p.ws.readyState === WebSocket.OPEN) {
+          try {
+            p.ws.send(rotationMsg);
+          } catch {}
+        }
+      }
+      reply({ type: 'ok', message: 'Key rotated and broadcast to all peers.' });
+      return;
+    }
+
+    // Owner can kick a peer out of the room
+    if (msg.type === 'kick') {
+      const toId = String(msg.to ?? '');
+      if (!room || room.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Only the room owner can kick peers.' });
+        return;
+      }
+      if (toId === deviceId) {
+        reply({ type: 'error', message: 'You cannot kick yourself.' });
+        return;
+      }
+      const target = room.peers.get(toId);
+      if (!target) {
+        reply({ type: 'error', message: 'Peer not found in room.' });
+        return;
+      }
+      // Remove the peer and close their connection
+      room.peers.delete(toId);
+      try {
+        target.ws.send(JSON.stringify({ type: 'kicked', message: 'You were removed from the room by the owner.' }));
+        target.ws.close();
+      } catch {
+        /* ignore */
+      }
+      // Notify remaining peers
+      room.lastActivityAt = Date.now();
+      clipBroadcast(room, {
+        type: 'peer_left',
+        deviceId: toId,
+        peerCount: room.peers.size,
+        peers: clipPeerList(room),
+      });
+      reply({ type: 'ok', message: 'Peer removed from room.' });
+      return;
+    }
+
+    // Owner can toggle whether the room accepts new join requests
+    if (msg.type === 'toggle_accepts_joins') {
+      if (!room || room.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Only the room owner can change this setting.' });
+        return;
+      }
+      room.acceptingNewJoins = !room.acceptingNewJoins;
+      room.lastActivityAt = Date.now();
+      // Notify all peers of the setting change
+      const settingMsg = JSON.stringify({
+        type: 'room_setting_changed',
+        setting: 'acceptingNewJoins',
+        value: room.acceptingNewJoins,
+      });
+      clipBroadcast(room, JSON.parse(settingMsg));
+      reply({ type: 'ok', message: `Room now ${room.acceptingNewJoins ? 'accepting' : 'not accepting'} new join requests.` });
+      return;
+    }
+
+    // Owner can rotate/regenerate the room display code (visual invite code)
+    if (msg.type === 'rotate_room_code') {
+      if (!room || room.ownerDeviceId !== deviceId) {
+        reply({ type: 'error', message: 'Only the room owner can rotate the room code.' });
+        return;
+      }
+      const oldCode = room.joinCode;
+      let newCode = oldCode;
+      for (let i = 0; i < 10 && newCode === oldCode; i += 1) {
+        const candidate = generateClipJoinCode();
+        if (!clipRoomByCode.has(candidate)) newCode = candidate;
+      }
+      if (newCode === oldCode) {
+        reply({ type: 'error', message: 'Failed to rotate room code. Try again.' });
+        return;
+      }
+      clipRoomByCode.delete(oldCode);
+      room.joinCode = newCode;
+      room.displayCode = newCode;
+      clipRoomByCode.set(newCode, room.id);
+      room.lastActivityAt = Date.now();
+      // Notify all peers that the code has rotated
+      const codeMsg = JSON.stringify({
+        type: 'room_code_rotated',
+        newCode: room.joinCode,
+        roomCode: room.joinCode,
+        message: 'Owner rotated the 6-character join code. Existing connections remain unchanged.',
+      });
+      clipBroadcast(room, JSON.parse(codeMsg));
+      reply({ type: 'ok', message: `New room code: ${room.joinCode}` });
+      return;
+    }
   });
 
   const cleanup = () => {
     clearInterval(hb);
     clearInterval(msgReset);
     if (room) {
+      // Remove from active peers if present
+      const wasOwner = room.ownerDeviceId === deviceId;
       room.peers.delete(deviceId);
+
+      // Remove if was pending
+      if (room.pendingRequests && room.pendingRequests.has(deviceId)) {
+        room.pendingRequests.delete(deviceId);
+        clipNotifyOwnerPendingRemoved(room, deviceId, 'left');
+      }
+
       room.lastActivityAt = Date.now();
       clipBroadcast(room, {
         type: 'peer_left',
@@ -1923,11 +2292,45 @@ clipSyncWss.on('connection', (ws, req) => {
         peerCount: room.peers.size,
         peers: clipPeerList(room),
       });
+
+      // If the owner disconnected, clear owner and accept pending requests
+      if (wasOwner) {
+        room.ownerDeviceId = undefined;
+        if (room.pendingRequests && room.pendingRequests.size > 0) {
+          for (const [pid, p] of room.pendingRequests.entries()) {
+            room.peers.set(pid, p);
+            try {
+              p.ws.send(
+                JSON.stringify({ 
+                  type: 'joined', 
+                  deviceId: pid, 
+                  roomId: room.id, 
+                  roomCode: room.joinCode,
+                  ownerDeviceId: room.ownerDeviceId,
+                  displayCode: room.displayCode,
+                  acceptingNewJoins: room.acceptingNewJoins,
+                  peerCount: room.peers.size, 
+                  peers: clipPeerList(room) 
+                }),
+              );
+            } catch {}
+          }
+          room.pendingRequests.clear();
+          clipBroadcast(room, { type: 'peer_joined', peerCount: room.peers.size, peers: clipPeerList(room) }, undefined);
+        }
+      }
+
       if (room.peers.size === 0) {
         const rid = room.id;
         setTimeout(() => {
           const r = clipRooms.get(rid);
-          if (r?.peers.size === 0) clipRooms.delete(rid);
+          if (r?.peers.size === 0) {
+            clipRoomByCode.delete(r.joinCode);
+            clipRooms.delete(rid);
+            for (const set of clipRoomsByIp.values()) {
+              set.delete(rid);
+            }
+          }
         }, 60_000);
       }
     }

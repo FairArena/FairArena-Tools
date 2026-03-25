@@ -27,16 +27,26 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  RotateCw,
+  Slash,
+  ToggleLeft,
+  ToggleRight,
+  Mic,
+  Square,
+  Camera,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from './ToastProvider';
+import { PendingApprovalScreen } from './PendingApprovalScreen';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Phase = 'idle' | 'connecting' | 'connected' | 'key_exchange' | 'error';
-type ItemType = 'text' | 'file' | 'image';
+type Phase = 'idle' | 'connecting' | 'connected' | 'key_exchange' | 'pending' | 'error';
+type ItemType = 'text' | 'file' | 'image' | 'audio' | 'video' | 'binary' | 'location';
 
 interface ClipItem {
   id: string;
@@ -46,6 +56,9 @@ interface ClipItem {
   filename?: string;
   fileSize?: number;
   mimeType?: string;
+  viewOnce?: boolean;
+  expiresAt?: number;
+  sensitivity?: 'normal' | 'password';
   senderId: string;
   senderName: string;
   ts: number;
@@ -64,6 +77,14 @@ interface ClipPayload {
   filename?: string;
   fileSize?: number;
   mimeType?: string;
+  viewOnce?: boolean;
+  expiresAt?: number;
+  sensitivity?: 'normal' | 'password';
+  // Chunked upload fields (for files > 1MB)
+  isChunk?: boolean;
+  chunkIndex?: number;
+  totalChunks?: number;
+  fileId?: string;
 }
 
 // ─── WebCrypto helpers (AES-256-GCM) ─────────────────────────────────────────
@@ -78,13 +99,6 @@ async function exportKey(key: CryptoKey): Promise<string> {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
-}
-
-async function importKey(b64url: string): Promise<CryptoKey> {
-  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
-  const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
-  return crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
 // ─── ECDH helpers for 6-char code key exchange ───────────────────────────────
@@ -225,7 +239,7 @@ function fmtSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-async function fileToBase64(file: File): Promise<string> {
+async function fileToBase64(file: File | Blob): Promise<string> {
   const buf = await file.arrayBuffer();
   const bytes = new Uint8Array(buf);
   let binary = '';
@@ -234,6 +248,21 @@ async function fileToBase64(file: File): Promise<string> {
     binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.length)));
   }
   return btoa(binary);
+}
+
+// Reassemble base64 chunks into a single base64 string
+function reassembleBase64Chunks(chunks: ClipPayload[]): string {
+  // Merge all base64 content (remove padding from all but last)
+  let result = '';
+  for (const chunk of chunks) {
+    const b64 = chunk.content;
+    // Remove padding from all but the last chunk for safe concatenation
+    const padless = b64.replace(/=/g, '');
+    result += padless;
+  }
+  // Re-add padding to the combined string (multiple of 4)
+  const padding = result.length % 4 === 0 ? '' : '='.repeat(4 - (result.length % 4));
+  return result + padding;
 }
 
 function downloadBase64File(content: string, filename: string, mimeType: string) {
@@ -248,34 +277,44 @@ function downloadBase64File(content: string, filename: string, mimeType: string)
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-function getRoomUrl(roomId: string, keyB64: string): string {
+function getRoomUrl(roomId: string): string {
   const base = window.location.origin + window.location.pathname;
-  return `${base}#clipsync/${roomId}/${keyB64}`;
+  // SECURITY: Never include encryption key in URL - only PIN code
+  return `${base}#clipsync/${roomId}`;
 }
 
 /**
- * Compact shareable invite code: `roomId.keyB64`
- * (~51 chars — contains both the room ID and the 256-bit encryption key).
+ * Shareable PIN code only (no encryption key).
+ * SECURITY: Keys are never included in shareable links.
  */
-function makeInviteCode(roomId: string, keyB64: string): string {
-  return `${roomId}.${keyB64}`;
+function makeInviteCode(roomId: string): string {
+  return roomId.toUpperCase();
 }
 
-function parseRoomHash(hash: string): { roomId: string; keyB64: string } | null {
-  const m = hash.match(/^#clipsync\/([a-zA-Z0-9]{4,12})\/([A-Za-z0-9_-]{20,})$/);
+function normalizeRoomCode(raw: unknown): string {
+  return String(raw ?? '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 6);
+}
+
+function parseRoomHash(hash: string): { roomId: string } | null {
+  const m = hash.match(/^#clipsync\/([a-zA-Z0-9]{6})$/);
   if (!m) return null;
-  return { roomId: m[1].toLowerCase(), keyB64: m[2] };
+  return { roomId: m[1].toLowerCase() };
 }
 
 /**
- * Accept a full URL, an invite code (`roomId.keyB64`), or a bare room code.
+ * Accept only PIN-only room codes.
+ * SECURITY: Reject any invite codes containing encryption keys.
  * Returns null when the input is unrecognisable.
  */
 function parseJoinInput(
   raw: string,
-): { roomId: string; keyB64: string } | { roomId: string; keyB64: null } | null {
+): { roomId: string } | null {
   const s = raw.trim();
   if (!s) return null;
+
   // Full URL with hash fragment
   try {
     const u = new URL(s);
@@ -284,28 +323,21 @@ function parseJoinInput(
   } catch {
     /* not a URL */
   }
-  // Invite code format: roomId.keyB64 (dot separator; base64url never contains '.')
-  const dotIdx = s.indexOf('.');
-  if (dotIdx > 0) {
-    const rid = s
-      .slice(0, dotIdx)
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
-    const kb64 = s
-      .slice(dotIdx + 1)
-      .trim()
-      .replace(/\s/g, '');
-    if (rid.length >= 4 && rid.length <= 12 && kb64.length >= 20) {
-      return { roomId: rid, keyB64: kb64 };
-    }
+
+  // SECURITY: Reject any input with dots (would indicate key was embedded)
+  if (s.includes('.')) {
+    console.warn('Rejecting invite code: key-based invites are not allowed');
+    return null;
   }
-  // Bare room code (4–12 alphanumeric chars) — ECDH exchange will fetch the key
+
+  // Bare room code — strict 6-char PIN
   const code = s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (code.length >= 4 && code.length <= 12) return { roomId: code, keyB64: null };
+  if (code.length === 6) return { roomId: code };
   return null;
 }
 
-const FILE_LIMIT = 4 * 1024 * 1024; // 4 MB
+const FILE_LIMIT = 50 * 1024 * 1024; // 50 MB for Phase 3
+const CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB chunks for large file upload
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -314,9 +346,15 @@ export function ClipSync() {
   const [roomId, setRoomId] = useState('');
   const [keyB64, setKeyB64] = useState('');
   const [myDeviceId, setMyDeviceId] = useState('');
+  const [ownerDeviceId, setOwnerDeviceId] = useState('');
   const [peers, setPeers] = useState<Peer[]>([]);
+  const [joinRequests, setJoinRequests] = useState<Array<{ deviceId: string; deviceName: string; ecdhPub?: string }>>([]);
+  const peerEcdhKeysRef = useRef<Map<string, string>>(new Map()); // Store peer ECDH public keys for key rotation
   const [items, setItems] = useState<ClipItem[]>([]);
   const [textInput, setTextInput] = useState('');
+  const [viewOnceMode, setViewOnceMode] = useState(false);
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [expiryMode, setExpiryMode] = useState<'none' | '60' | '300' | '3600'>('none');
   const [joinInput, setJoinInput] = useState('');
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -327,6 +365,10 @@ export function ClipSync() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [acceptingNewJoins, setAcceptingNewJoins] = useState(true);
+  const [, setDisplayCode] = useState<string>('');
+  const [, setUploadProgress] = useState<Record<string, number>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const cryptoKeyRef = useRef<CryptoKey | null>(null);
@@ -334,19 +376,30 @@ export function ClipSync() {
   const myDeviceIdRef = useRef('');
   const feedRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const keyB64Ref = useRef('');
   const roomIdRef = useRef('');
+  const chunksRef = useRef<Map<string, Map<number, ClipPayload>>>(new Map()); // fileId -> chunkIndex -> payload
+
+  // Toast notifications
+  const toast = useToast();
+
+  // Derived value: is current device the room owner?
+  const isOwner = myDeviceId && ownerDeviceId && myDeviceId === ownerDeviceId;
 
   // Scroll feed to bottom on new items
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [items]);
 
-  // QR code (dynamic import so qrcode is code-split)
+  // QR code (dynamic import so qrcode is code-split) - PIN-only mode
   useEffect(() => {
-    if (!showQR || !roomId || !keyB64) return;
+    if (!showQR || !roomId) return;
     let cancelled = false;
-    const url = getRoomUrl(roomId, keyB64);
+    // SECURITY: QR always encodes PIN-only URL; no keys embedded
+    const url = getRoomUrl(roomId);
     import('qrcode')
       .then((mod) => {
         if (cancelled) return;
@@ -367,19 +420,16 @@ export function ClipSync() {
     };
   }, [showQR, roomId, keyB64]);
 
-  // Auto-join from URL hash on mount
+  // Auto-join from URL hash on mount (PIN-only mode)
   useEffect(() => {
     const parsed = parseRoomHash(window.location.hash);
     if (parsed) {
-      setJoinInput(getRoomUrl(parsed.roomId, parsed.keyB64));
-      importKey(parsed.keyB64)
-        .then((key) => {
-          cryptoKeyRef.current = key;
-          connectToRoom(parsed.roomId, parsed.keyB64, key);
-        })
-        .catch(() => setErrorMsg('Invalid key in URL — the link may be corrupted.'));
+      // SECURITY: All URLs are PIN-only; no embedded keys
+      setJoinInput(parsed.roomId.toUpperCase());
+      connectToRoom(parsed.roomId, null, null);
     }
     // connectToRoom is defined inside render scope — safe to pass [] since it only runs on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── WebSocket connection ────────────────────────────────────────────────────
@@ -389,16 +439,31 @@ export function ClipSync() {
   function connectToRoom(rid: string, kb64: string | null, key: CryptoKey | null) {
     setPhase('connecting');
     setErrorMsg('');
-    setRoomId(rid);
+    const normalizedRid = normalizeRoomCode(rid);
+    setRoomId(normalizedRid);
     setKeyB64(kb64 ?? '');
-    roomIdRef.current = rid;
+    roomIdRef.current = normalizedRid;
     keyB64Ref.current = kb64 ?? '';
 
     const ws = new WebSocket(`${CLIP_WS_BASE}/clipsync`);
     wsRef.current = ws;
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'join', roomId: rid, deviceName: getDeviceName() }));
+    ws.onopen = async () => {
+      // If we don't already have the AES key, prepare an ECDH public key so the owner
+      // can perform an authenticated key wrap after approving.
+      let ecdhPub: string | null = null;
+      if (!key) {
+        try {
+          if (!ecdhPairRef.current) {
+            const pair = await generateECDHKeyPair();
+            ecdhPairRef.current = pair;
+          }
+          ecdhPub = await exportECDHPublicKey(ecdhPairRef.current!.publicKey);
+        } catch {
+          /* ignore */
+        }
+      }
+      ws.send(JSON.stringify({ type: 'join', roomId: normalizedRid, deviceName: getDeviceName(), hasKey: false, ecdhPub }));
     };
 
     ws.onmessage = async (evt) => {
@@ -410,18 +475,24 @@ export function ClipSync() {
       }
 
       if (msg.type === 'joined') {
+        const roomCode = normalizeRoomCode((msg.roomCode as string) ?? normalizedRid);
         myDeviceIdRef.current = msg.deviceId as string;
         setMyDeviceId(msg.deviceId as string);
+        setRoomId(roomCode);
+        roomIdRef.current = roomCode;
+        setOwnerDeviceId((msg.ownerDeviceId as string) ?? '');
         setPeers((msg.peers as Peer[]) ?? []);
+        setDisplayCode((msg.displayCode as string) ?? '');
+        setAcceptingNewJoins((msg.acceptingNewJoins as boolean) ?? true);
         if (key) {
           // Already have the AES key (joined via invite code / URL)
           setPhase('connected');
-          if (kb64) history.replaceState(null, '', `#clipsync/${rid}/${kb64}`);
+          history.replaceState(null, '', `#clipsync/${roomCode}`);
         } else {
           // No key — initiate ECDH key request
           setPhase('key_exchange');
           try {
-            const pair = await generateECDHKeyPair();
+            const pair = ecdhPairRef.current ?? (await generateECDHKeyPair());
             ecdhPairRef.current = pair;
             const pubKey = await exportECDHPublicKey(pair.publicKey);
             ws.send(JSON.stringify({ type: 'signal', data: { meta: 'key_req', pubKey } }));
@@ -434,8 +505,54 @@ export function ClipSync() {
         return;
       }
 
+      // Owner: incoming join request to approve/reject
+      if (msg.type === 'join_request') {
+        const from = msg.from as string;
+        const name = (msg.deviceName as string) ?? 'Device';
+        const ecdhPub = (msg.ecdhPub as string) ?? null;
+        setJoinRequests((s) =>
+          s.some((r) => r.deviceId === from) ? s : [...s, { deviceId: from, deviceName: name, ecdhPub }],
+        );
+        return;
+      }
+
+      if (msg.type === 'pending_request_removed') {
+        const removedId = String(msg.deviceId ?? '');
+        if (removedId) {
+          setJoinRequests((s) => s.filter((r) => r.deviceId !== removedId));
+        }
+        return;
+      }
+
+      // Joiner: pending approval message
+      if (msg.type === 'pending') {
+        setPhase('pending');
+        setErrorMsg((msg.message as string) ?? 'Awaiting owner approval...');
+        return;
+      }
+
+      // When peer is approved and moved to peers, we get a second 'joined' message
+      // If we already have crypto key (from DM deliver), just move to connected
+      if (msg.type === 'joined' && phase === 'pending' && cryptoKeyRef.current) {
+        myDeviceIdRef.current = msg.deviceId as string;
+        setMyDeviceId(msg.deviceId as string);
+        setOwnerDeviceId((msg.ownerDeviceId as string) ?? '');
+        setPeers((msg.peers as Peer[]) ?? []);
+        setPhase('connected');
+        return;
+      }
+
+      if (msg.type === 'rejected') {
+        setErrorMsg((msg.message as string) ?? 'Join request rejected by owner.');
+        setPhase('idle');
+        ws.close();
+        return;
+      }
+
       if (msg.type === 'peer_joined' || msg.type === 'peer_left' || msg.type === 'peer_update') {
         setPeers((msg.peers as Peer[]) ?? []);
+        const peerIds = new Set(((msg.peers as Peer[]) ?? []).map((p) => p.deviceId));
+        setJoinRequests((s) => s.filter((r) => !peerIds.has(r.deviceId)));
         return;
       }
 
@@ -463,7 +580,7 @@ export function ClipSync() {
         return;
       }
 
-      // ─ dm: direct message routed by server (ECDH key_resp) ─
+      // ─ dm: direct message routed by server (ECDH key_resp or key_rotation) ─
       if (msg.type === 'dm') {
         const data = msg.data as Record<string, unknown>;
         if (!data) return;
@@ -478,31 +595,139 @@ export function ClipSync() {
             cryptoKeyRef.current = aesKey;
             keyB64Ref.current = kb64New;
             setKeyB64(kb64New);
-            ecdhPairRef.current = null; // ECDH pair no longer needed
+            // KEEP ecdhPairRef for future key rotations — don't set to null
             setPhase('connected');
-            history.replaceState(null, '', `#clipsync/${rid}/${kb64New}`);
+            history.replaceState(null, '', `#clipsync/${roomIdRef.current}`);
           } catch {
             setErrorMsg('Key exchange failed — the room host may have gone offline. Try again.');
             setPhase('error');
             ws.close();
           }
         }
+        // Handle key rotation: unwrap new key from owner
+        if (data.meta === 'key_rotation' && ecdhPairRef.current) {
+          try {
+            const newKey = await unwrapAESKey(
+              data.wrappedKey as string,
+              data.ephemeralPub as string,
+              ecdhPairRef.current.privateKey,
+            );
+            cryptoKeyRef.current = newKey;
+            const kb64New = await exportKey(newKey);
+            keyB64Ref.current = kb64New;
+            setKeyB64(kb64New);
+            toast.show('Encryption key rotated by owner');
+          } catch (err) {
+            console.warn('Key rotation unwrap failed:', err);
+          }
+        }
         return;
       }
 
       if (msg.type === 'error') {
-        setErrorMsg((msg.message as string) ?? 'Room error.');
-        setPhase('error');
-        ws.close();
+        const message = (msg.message as string) ?? 'Room error.';
+        // Non-fatal backend errors while connected should not tear down the room UI.
+        if (phase === 'connected' || phase === 'pending') {
+          setSendError(message);
+          toast.show(message);
+        } else {
+          setErrorMsg(message);
+          setPhase('error');
+          ws.close();
+        }
         return;
       }
 
       if (msg.type === 'pong') return;
 
+      // Handle kicked from room
+      if (msg.type === 'kicked') {
+        setErrorMsg((msg.message as string) ?? 'You were removed from the room.');
+        setPhase('error');
+        ws.close();
+        return;
+      }
+
+      // Handle room setting changes
+      if (msg.type === 'room_setting_changed') {
+        const setting = msg.setting as string;
+        const value = msg.value as boolean;
+        if (setting === 'acceptingNewJoins') {
+          setAcceptingNewJoins(value);
+          toast.show(`Room now ${value ? 'accepting' : 'not accepting'} new join requests`);
+        }
+        return;
+      }
+
+      // Handle room code rotation
+      if (msg.type === 'room_code_rotated') {
+        const newCode = normalizeRoomCode((msg.roomCode as string) ?? (msg.newCode as string) ?? '');
+        if (newCode) {
+          setRoomId(newCode);
+          roomIdRef.current = newCode;
+          history.replaceState(null, '', `#clipsync/${newCode}`);
+          setJoinInput(newCode);
+        }
+        setDisplayCode(newCode);
+        toast.show(`Invite code rotated to: ${newCode}`);
+        return;
+      }
+
       if (msg.type === 'message' && msg.payload && cryptoKeyRef.current) {
         const currentKey = cryptoKeyRef.current;
         try {
           const p = await decryptPayload(currentKey, msg.payload as string);
+          
+          // Handle chunked files
+          if (p.isChunk && p.fileId && p.totalChunks !== undefined) {
+            // Initialize chunk store for this fileId if needed
+            if (!chunksRef.current.has(p.fileId)) {
+              chunksRef.current.set(p.fileId, new Map());
+            }
+            const fileChunks = chunksRef.current.get(p.fileId)!;
+            fileChunks.set(p.chunkIndex ?? 0, p);
+            
+            // Check if all chunks received
+            if (fileChunks.size === p.totalChunks) {
+              // Reassemble chunks in order
+              const orderedChunks: ClipPayload[] = [];
+              for (let i = 0; i < p.totalChunks; i++) {
+                const chunk = fileChunks.get(i);
+                if (!chunk) return; // Missing a chunk, wait
+                orderedChunks.push(chunk);
+              }
+              
+              // Merge base64 content
+              const reassembledBase64 = reassembleBase64Chunks(orderedChunks);
+              
+              // Add reassembled item (use metadata from first chunk)
+              const first = orderedChunks[0];
+              setItems((prev) => [
+                ...prev,
+                {
+                  id: `${msg.sender as string}-${msg.ts as number}`,
+                  type: first.type,
+                  content: reassembledBase64,
+                  filename: first.filename,
+                  fileSize: first.fileSize,
+                  mimeType: first.mimeType,
+                  viewOnce: first.viewOnce,
+                  expiresAt: first.expiresAt,
+                  sensitivity: first.sensitivity,
+                  senderId: msg.sender as string,
+                  senderName: msg.senderName as string,
+                  ts: msg.ts as number,
+                  isOwn: (msg.sender as string) === myDeviceIdRef.current,
+                },
+              ]);
+              
+              // Clean up chunk store
+              chunksRef.current.delete(p.fileId);
+            }
+            return;
+          }
+          
+          // Non-chunked message
           setItems((prev) => [
             ...prev,
             {
@@ -512,6 +737,9 @@ export function ClipSync() {
               filename: p.filename,
               fileSize: p.fileSize,
               mimeType: p.mimeType,
+              viewOnce: p.viewOnce,
+              expiresAt: p.expiresAt,
+              sensitivity: p.sensitivity,
               senderId: msg.sender as string,
               senderName: msg.senderName as string,
               ts: msg.ts as number,
@@ -542,7 +770,10 @@ export function ClipSync() {
       const key = await generateKey();
       const kb64 = await exportKey(key);
       cryptoKeyRef.current = key;
-      connectToRoom(rid, kb64, key);
+      keyB64Ref.current = kb64;
+      // PIN-only mode: join without sharing key in URL
+      // Key is kept locally and wrapped+sent to peers via ECDH after they request it
+      connectToRoom(rid, null, key);
     } catch {
       setErrorMsg('Failed to generate room. Your browser may not support WebCrypto.');
     }
@@ -552,24 +783,13 @@ export function ClipSync() {
     setErrorMsg('');
     const parsed = parseJoinInput(joinInput);
     if (!parsed) {
-      setErrorMsg('Enter a 6-character room code, an invite code, or paste the full room link.');
+      setErrorMsg('Enter a 6-character room code or paste a room link.');
       return;
     }
-    const { roomId: rid, keyB64: kb64 } = parsed;
+    const rid = normalizeRoomCode(parsed.roomId);
 
-    // Joining with just the room code — ECDH key exchange runs automatically
-    if (!kb64) {
-      connectToRoom(rid, null, null);
-      return;
-    }
-
-    try {
-      const key = await importKey(kb64);
-      cryptoKeyRef.current = key;
-      connectToRoom(rid, kb64, key);
-    } catch {
-      setErrorMsg('Invalid encryption key in the link.');
-    }
+    // PIN-only mode: join with just the room code and await owner approval to receive key
+    connectToRoom(rid, null, null);
   };
 
   const leaveRoom = () => {
@@ -594,42 +814,14 @@ export function ClipSync() {
     if (!text || !cryptoKeyRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
     setSendError('');
     try {
-      const encrypted = await encryptPayload(cryptoKeyRef.current, { type: 'text', content: text });
-      wsRef.current.send(JSON.stringify({ type: 'relay', payload: encrypted }));
-      setItems((prev) => [
-        ...prev,
-        {
-          id: `own-${Date.now()}-${Math.random()}`,
-          type: 'text',
-          content: text,
-          senderId: myDeviceId,
-          senderName: 'You',
-          ts: Date.now(),
-          isOwn: true,
-        },
-      ]);
-      setTextInput('');
-    } catch {
-      setSendError('Failed to encrypt. Try again.');
-    }
-  };
-
-  const sendFile = async (file: File) => {
-    setSendError('');
-    if (!cryptoKeyRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
-    if (file.size > FILE_LIMIT) {
-      setSendError(`File too large. Max ${fmtSize(FILE_LIMIT)}.`);
-      return;
-    }
-    try {
-      const isImage = file.type.startsWith('image/');
-      const content = await fileToBase64(file);
+      const expiresIn = expiryMode === 'none' ? 0 : Number(expiryMode);
+      const expiresAt = expiresIn > 0 ? Date.now() + expiresIn * 1000 : undefined;
       const payload: ClipPayload = {
-        type: isImage ? 'image' : 'file',
-        content,
-        filename: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
+        type: 'text',
+        content: text,
+        viewOnce: viewOnceMode,
+        expiresAt,
+        sensitivity: passwordMode ? 'password' : 'normal',
       };
       const encrypted = await encryptPayload(cryptoKeyRef.current, payload);
       wsRef.current.send(JSON.stringify({ type: 'relay', payload: encrypted }));
@@ -644,9 +836,251 @@ export function ClipSync() {
           isOwn: true,
         },
       ]);
+      setTextInput('');
+      setViewOnceMode(false);
+      setPasswordMode(false);
+      setExpiryMode('none');
+    } catch {
+      setSendError('Failed to encrypt. Try again.');
+    }
+  };
+
+  const sendFile = async (file: File) => {
+    setSendError('');
+    if (!cryptoKeyRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    if (file.size > FILE_LIMIT) {
+      setSendError(`File too large. Max ${fmtSize(FILE_LIMIT)}.`);
+      return;
+    }
+    try {
+      const isImage = file.type.startsWith('image/');
+      const itemType = isImage ? 'image' : (file.type.startsWith('audio/') ? 'audio' : (file.type.startsWith('video/') ? 'video' : 'binary'));
+      const expiresIn = expiryMode === 'none' ? 0 : Number(expiryMode);
+      const expiresAt = expiresIn > 0 ? Date.now() + expiresIn * 1000 : undefined;
+      const sensitivity: ClipPayload['sensitivity'] = passwordMode ? 'password' : 'normal';
+      
+        // For files > CHUNK_SIZE (1MB), use chunked upload
+        if (file.size > CHUNK_SIZE) {
+        const fileId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+          const start = chunkIndex * CHUNK_SIZE;
+          const end = Math.min((chunkIndex + 1) * CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          const chunkBase64 = await fileToBase64(chunk);
+          
+          const payload: ClipPayload = {
+            type: itemType,
+            content: chunkBase64,
+            filename: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            viewOnce: viewOnceMode,
+            expiresAt,
+            sensitivity,
+            isChunk: true,
+            chunkIndex,
+            totalChunks,
+            fileId,
+          };
+          
+          const encrypted = await encryptPayload(cryptoKeyRef.current, payload);
+          wsRef.current?.send(JSON.stringify({ type: 'relay', payload: encrypted }));
+          
+          // Update progress
+          const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+          setUploadProgress(prev => ({ ...prev, [fileId]: percent }));
+        }
+        
+        // Add item once all chunks sent
+        setItems((prev) => [
+          ...prev,
+          {
+            id: `own-${Date.now()}-${Math.random()}`,
+            type: itemType,
+            content: '', // Empty until reassembled
+            filename: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            viewOnce: viewOnceMode,
+            expiresAt,
+            sensitivity,
+            senderId: myDeviceId,
+            senderName: 'You',
+            ts: Date.now(),
+            isOwn: true,
+          },
+        ]);
+      } else {
+        // For small files, send in one message
+        const content = await fileToBase64(file);
+        const payload: ClipPayload = {
+          type: itemType,
+          content,
+          filename: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          viewOnce: viewOnceMode,
+          expiresAt,
+          sensitivity,
+        };
+        const encrypted = await encryptPayload(cryptoKeyRef.current, payload);
+        wsRef.current.send(JSON.stringify({ type: 'relay', payload: encrypted }));
+        setItems((prev) => [
+          ...prev,
+          {
+            id: `own-${Date.now()}-${Math.random()}`,
+            ...payload,
+            senderId: myDeviceId,
+            senderName: 'You',
+            ts: Date.now(),
+            isOwn: true,
+          },
+        ]);
+      }
+      setViewOnceMode(false);
+      setPasswordMode(false);
+      setExpiryMode('none');
     } catch {
       setSendError('Failed to process file. It may be too large or unsupported.');
     }
+  };
+
+  // Audio recording for Phase 3: Media Sharing
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (blob.size > FILE_LIMIT) {
+          setSendError(`Recording too large. Max ${fmtSize(FILE_LIMIT)}.`);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const base64 = (e.target?.result as string).split(',')[1];
+          if (!cryptoKeyRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+          try {
+            const payload: ClipPayload = {
+              type: 'audio',
+              content: base64,
+              filename: `recording-${Date.now()}.webm`,
+              mimeType: 'audio/webm',
+              fileSize: blob.size,
+            };
+            const encrypted = await encryptPayload(cryptoKeyRef.current, payload);
+            wsRef.current.send(JSON.stringify({ type: 'relay', payload: encrypted }));
+            setItems((prev) => [...prev, { id: `own-${Date.now()}`, ...payload, senderId: myDeviceId, senderName: 'You', ts: Date.now(), isOwn: true }]);
+            toast.show('Audio sent');
+          } catch {
+            setSendError('Failed to send audio');
+          }
+        };
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      toast.show('Recording started...');
+    } catch {
+      setSendError('Microphone access denied. Grant permission in browser settings.');
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+
+  // Owner approval handlers
+  const approveRequest = async (deviceIdToApprove: string, ecdhPub?: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    // Store peer's ECDH public key for future key rotations
+    if (ecdhPub) {
+      peerEcdhKeysRef.current.set(deviceIdToApprove, ecdhPub);
+    }
+    // Wrap AES key and deliver via dm if we have the room key and the joiner provided an ECDH pub
+    if (ecdhPub && cryptoKeyRef.current) {
+      try {
+        const peerPub = await importECDHPublicKey(ecdhPub);
+        const { wrappedKey, ephemeralPub } = await wrapAESKey(cryptoKeyRef.current, peerPub);
+        wsRef.current.send(JSON.stringify({ type: 'dm', to: deviceIdToApprove, data: { meta: 'key_resp', wrappedKey, ephemeralPub } }));
+      } catch {
+        /* ignore */
+      }
+    }
+    // Tell server to approve (server will add peer to peers and notify everyone)
+    wsRef.current.send(JSON.stringify({ type: 'approve', to: deviceIdToApprove }));
+    setJoinRequests((s) => s.filter((r) => r.deviceId !== deviceIdToApprove));
+  };
+
+  const rejectRequest = (deviceIdToReject: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'reject', to: deviceIdToReject }));
+    setJoinRequests((s) => s.filter((r) => r.deviceId !== deviceIdToReject));
+  };
+
+  // Rotate encryption key (owner-only) — generates new AES key and wraps for each peer
+  const rotateKey = async () => {
+    if (!isOwner || !cryptoKeyRef.current || peers.length === 0) return;
+    try {
+      // Generate new AES-256-GCM key
+      const newKey = await generateKey();
+      cryptoKeyRef.current = newKey;
+      
+      // Wrap new key for each connected peer and send via dm
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        for (const peerId of peerEcdhKeysRef.current.keys()) {
+          try {
+            const ecdhPubB64 = peerEcdhKeysRef.current.get(peerId);
+            if (ecdhPubB64) {
+              const peerPub = await importECDHPublicKey(ecdhPubB64);
+              const { wrappedKey, ephemeralPub } = await wrapAESKey(newKey, peerPub);
+              wsRef.current.send(JSON.stringify({
+                type: 'dm',
+                to: peerId,
+                data: { meta: 'key_rotation', wrappedKey, ephemeralPub }
+              }));
+            }
+          } catch (err) {
+            console.warn(`Failed to wrap key for peer ${peerId}:`, err);
+          }
+        }
+        // Notify server to broadcast rotate_key to all peers
+        wsRef.current.send(JSON.stringify({ type: 'rotate_key' }));
+        toast.show('Encryption key rotated and delivered to all peers');
+      }
+    } catch (err) {
+      toast.show(`Key rotation failed: ${String(err)}`);
+    }
+  };
+
+  const kickPeer = (deviceId: string) => {
+    if (!isOwner || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'kick', to: deviceId }));
+    toast.show('Peer removed from room');
+  };
+
+  const toggleAcceptingJoins = () => {
+    if (!isOwner || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'toggle_accepts_joins' }));
+  };
+
+  const rotateRoomCode = () => {
+    if (!isOwner || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'rotate_room_code' }));
   };
 
   const pasteClipboard = async () => {
@@ -660,15 +1094,18 @@ export function ClipSync() {
   };
 
   const copyLink = async () => {
-    await navigator.clipboard.writeText(getRoomUrl(roomId, keyB64));
+    // PIN-only mode: all shareable links now use PIN, never keys
+    await navigator.clipboard.writeText(getRoomUrl(roomId));
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2500);
   };
 
   const copyInviteCode = async () => {
-    await navigator.clipboard.writeText(makeInviteCode(roomId, keyB64));
+    // SECURITY: Only copy the PIN, never the key
+    await navigator.clipboard.writeText(makeInviteCode(roomId));
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2500);
+    toast.show('PIN copied to clipboard');
   };
 
   const copyItemContent = async (item: ClipItem) => {
@@ -706,6 +1143,92 @@ export function ClipSync() {
     const file = e.target.files?.[0];
     if (file) await sendFile(file);
     e.target.value = '';
+  };
+
+  const handleCameraFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await sendFile(file);
+    e.target.value = '';
+  };
+
+  const openCamera = async () => {
+    setSendError('');
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        cameraInputRef.current?.click();
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      cameraStreamRef.current = stream;
+      setIsCameraOpen(true);
+      setTimeout(() => {
+        if (cameraVideoRef.current) {
+          cameraVideoRef.current.srcObject = stream;
+          void cameraVideoRef.current.play();
+        }
+      }, 0);
+    } catch {
+      cameraInputRef.current?.click();
+    }
+  };
+
+  const closeCamera = () => {
+    const stream = cameraStreamRef.current;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    cameraStreamRef.current = null;
+    setIsCameraOpen(false);
+  };
+
+  const capturePhoto = async () => {
+    const video = cameraVideoRef.current;
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) return;
+    const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    await sendFile(file);
+    closeCamera();
+  };
+
+  const sendLocation = async () => {
+    setSendError('');
+    if (!cryptoKeyRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    if (!navigator.geolocation) {
+      setSendError('Geolocation is not supported on this browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude, accuracy } = pos.coords;
+          const content = JSON.stringify({ latitude, longitude, accuracy, ts: Date.now() });
+          const payload: ClipPayload = { type: 'location', content };
+          const encrypted = await encryptPayload(cryptoKeyRef.current!, payload);
+          wsRef.current?.send(JSON.stringify({ type: 'relay', payload: encrypted }));
+          setItems((prev) => [
+            ...prev,
+            {
+              id: `own-${Date.now()}-${Math.random()}`,
+              ...payload,
+              senderId: myDeviceId,
+              senderName: 'You',
+              ts: Date.now(),
+              isOwn: true,
+            },
+          ]);
+          toast.show('Current location shared (end-to-end encrypted).');
+        } catch {
+          setSendError('Failed to share location.');
+        }
+      },
+      () => setSendError('Location permission denied.'),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
+    );
   };
 
   const handleTextKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -774,14 +1297,15 @@ export function ClipSync() {
                   <span className="text-white font-mono font-bold tracking-wider text-[11px]">
                     6-char code
                   </span>{' '}
-                  shown on the host device, or paste the full link for instant join.
+                  shown on the host device, or paste the PIN for owner approval.
                 </p>
               </div>
               <Input
-                placeholder="A4K7R2 · or paste full link…"
+                placeholder="A4K7R2"
                 value={joinInput}
-                onChange={(e) => setJoinInput(e.target.value)}
+                onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
                 onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                maxLength={6}
                 className="bg-slate-800/70 border-slate-700 text-sm h-9 text-white placeholder:text-slate-500 font-mono tracking-wide uppercase"
               />
               <Button
@@ -832,6 +1356,7 @@ export function ClipSync() {
           </div>
         </div>
       </div>
+
     );
   }
 
@@ -848,7 +1373,13 @@ export function ClipSync() {
 
   // ── Connected room screen ───────────────────────────────────────────────────
 
-  const roomUrl = getRoomUrl(roomId, keyB64);
+  const roomUrl = getRoomUrl(roomId);
+  const inviteCode = makeInviteCode(roomId);
+
+  // Show dedicated pending approval screen instead of normal room UI
+  if (phase === 'pending') {
+    return <PendingApprovalScreen roomId={roomId} errorMsg={errorMsg} onLeave={leaveRoom} />;
+  }
 
   return (
     <div className="h-full flex flex-col min-h-0 gap-3 overflow-hidden">
@@ -881,7 +1412,7 @@ export function ClipSync() {
             </button>
             <button
               onClick={copyLink}
-              title="Copy full room link (includes key — instant join for the recipient)"
+              title="Copy full room link"
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/60"
             >
               {linkCopied ? (
@@ -931,23 +1462,89 @@ export function ClipSync() {
         </button>
       </div>
 
+      {/* Owner controls */}
+      {isOwner && peers.length > 0 && phase === 'connected' && (
+        <div className="flex gap-2 mx-2 flex-wrap">
+          <button
+            onClick={rotateKey}
+            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-900/60"
+            title="Rotate encryption key for all peers"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Rotate Key</span>
+          </button>
+          <button
+            onClick={toggleAcceptingJoins}
+            className={`flex items-center gap-1.5 text-xs transition-colors px-3 py-2 rounded-lg border ${
+              acceptingNewJoins
+                ? 'text-slate-300 hover:text-blue-300 hover:bg-blue-500/10 border-slate-700/40 bg-slate-900/60'
+                : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-700/40 bg-red-950/20'
+            }`}
+            title={`${acceptingNewJoins ? 'Disable' : 'Enable'} new join requests`}
+          >
+            {acceptingNewJoins ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{acceptingNewJoins ? 'Accepting' : 'Closed'}</span>
+          </button>
+          <button
+            onClick={rotateRoomCode}
+            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-purple-300 hover:bg-purple-500/10 transition-colors px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-900/60"
+            title="Regenerate invite code"
+          >
+            <Slash className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Code</span>
+          </button>
+        </div>
+      )}
+
+      {/* Pending join requests (owner only) */}
+      {joinRequests.length > 0 && (
+        <div className="bg-amber-900/10 border border-amber-700/20 rounded-lg px-3 py-2 mx-2">
+          <div className="text-xs text-amber-200 font-semibold mb-2">Pending join requests</div>
+          <div className="flex gap-2 flex-wrap">
+            {joinRequests.map((r) => (
+              <div key={r.deviceId} className="bg-slate-800/40 border border-slate-700/30 rounded-md px-3 py-2 flex items-center gap-3 min-w-[250px]">
+                <div className="text-xs text-slate-300 flex-1 min-w-0">
+                  <div className="font-medium truncate">{r.deviceName}</div>
+                  <div className="text-[10px] text-slate-500 truncate">{r.deviceId}</div>
+                </div>
+                <div className="ml-2 flex gap-1">
+                  <Button size="sm" onClick={() => approveRequest(r.deviceId, r.ecdhPub)} className="bg-emerald-600 hover:bg-emerald-500 text-white">Approve</Button>
+                  <Button size="sm" variant="outline" onClick={() => rejectRequest(r.deviceId)} className="ml-1 border-slate-600 text-slate-300 hover:text-white">Reject</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Collapsed devices panel ── */}
       {showDevices && (
-        <div className="shrink-0 flex flex-wrap gap-2 bg-slate-900/40 border border-slate-800/50 rounded-xl p-3">
-          {peers.map((p) => (
-            <div
-              key={p.deviceId}
-              className="flex items-center gap-1.5 bg-slate-800/50 rounded-lg px-2.5 py-1.5 text-xs"
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${p.deviceId === myDeviceId ? 'bg-indigo-400' : 'bg-emerald-400'}`}
-              />
-              <span className="text-slate-300">
-                {p.deviceId === myDeviceId ? `You (${p.deviceName})` : p.deviceName}
-              </span>
-            </div>
-          ))}
-          <div className="flex items-center gap-1 text-[10px] text-slate-600 ml-auto self-center">
+        <div className="shrink-0 flex flex-col gap-2 bg-slate-900/40 border border-slate-800/50 rounded-xl p-3">
+          <div className="flex flex-wrap gap-2">
+            {peers.map((p) => (
+              <div
+                key={p.deviceId}
+                className="flex items-center gap-1.5 bg-slate-800/50 rounded-lg px-2.5 py-1.5 text-xs group"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${p.deviceId === myDeviceId ? 'bg-indigo-400' : 'bg-emerald-400'}`}
+                />
+                <span className="text-slate-300">
+                  {p.deviceId === myDeviceId ? `You (${p.deviceName})` : p.deviceName}
+                </span>
+                {isOwner && p.deviceId !== myDeviceId && (
+                  <button
+                    onClick={() => kickPeer(p.deviceId)}
+                    className="ml-1 p-0.5 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                    title="Remove this peer from the room"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 text-[10px] text-slate-600">
             <Shield className="w-3 h-3" /> E2E encrypted
           </div>
         </div>
@@ -971,18 +1568,18 @@ export function ClipSync() {
                 Scan to join on another device
               </p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                The 256-bit encryption key is embedded in both the QR code and the invite code —
-                your server never receives it.
+                The 256-bit encryption key is generated per-room and delivered to approved peers via ECDH key wrapping.
+                Your server never sees unencrypted keys.
               </p>
             </div>
-            {/* Invite code — primary share mechanism */}
+            {/* Invite code — primary share mechanism (PIN-only) */}
             <div>
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Invite code
+                Invite PIN (no key)
               </p>
               <div className="relative group">
                 <code className="block text-[11px] font-mono text-indigo-300 bg-slate-800/70 rounded-lg p-2.5 break-all leading-relaxed pr-8 select-all">
-                  {makeInviteCode(roomId, keyB64)}
+                  {inviteCode}
                 </code>
                 <button
                   onClick={copyInviteCode}
@@ -1000,10 +1597,10 @@ export function ClipSync() {
                 Paste this in the “Join existing room” box on any device.
               </p>
             </div>
-            {/* Full URL (for opening in browser) */}
+            {/* Room URL (PIN-only, no keys) */}
             <div>
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Full link
+                Room URL (PIN only)
               </p>
               <div className="relative group">
                 <code className="block text-[10px] font-mono text-slate-500 bg-slate-800/70 rounded-lg p-2.5 break-all leading-relaxed pr-8 select-all">
@@ -1012,7 +1609,7 @@ export function ClipSync() {
                 <button
                   onClick={copyLink}
                   className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-700/70 hover:bg-slate-600/70 text-slate-400 hover:text-white transition-colors"
-                  title="Copy full link"
+                  title="Copy room URL"
                 >
                   {linkCopied ? (
                     <Check className="w-3 h-3 text-emerald-400" />
@@ -1084,12 +1681,57 @@ export function ClipSync() {
           />
           <div className="flex items-center gap-2 flex-wrap">
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleCameraFileChange}
+            />
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg border border-slate-700/50 hover:border-slate-600 bg-slate-800/40"
             >
               <Paperclip className="w-3.5 h-3.5" />
               <span>Attach</span>
+            </button>
+            <button
+              onClick={openCamera}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg border border-slate-700/50 hover:border-slate-600 bg-slate-800/40"
+              title="Open camera"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Camera</span>
+            </button>
+            <button
+              onClick={sendLocation}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg border border-slate-700/50 hover:border-slate-600 bg-slate-800/40"
+              title="Share current location"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Location</span>
+            </button>
+            <button
+              onClick={isRecording ? stopAudioRecording : startAudioRecording}
+              className={`flex items-center gap-1.5 text-xs transition-colors px-2.5 py-1.5 rounded-lg border ${
+                isRecording
+                  ? 'text-red-400 border-red-700/50 bg-red-950/40 hover:bg-red-950/60'
+                  : 'text-slate-400 hover:text-white border-slate-700/50 hover:border-slate-600 bg-slate-800/40'
+              }`}
+              title={isRecording ? 'Stop recording' : 'Start audio recording'}
+            >
+              {isRecording ? (
+                <>
+                  <Square className="w-2.5 h-2.5 fill-red-400" />
+                  <span>Recording...</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Record</span>
+                </>
+              )}
             </button>
             <button
               onClick={pasteClipboard}
@@ -1099,6 +1741,40 @@ export function ClipSync() {
               <span className="hidden sm:inline">Paste clipboard</span>
               <span className="sm:hidden">Paste</span>
             </button>
+            <button
+              onClick={() => setViewOnceMode((v) => !v)}
+              className={`flex items-center gap-1.5 text-xs transition-colors px-2.5 py-1.5 rounded-lg border ${
+                viewOnceMode
+                  ? 'text-amber-300 border-amber-600/60 bg-amber-950/30'
+                  : 'text-slate-400 hover:text-white border-slate-700/50 hover:border-slate-600 bg-slate-800/40'
+              }`}
+              title="View once"
+            >
+              <span>View Once</span>
+            </button>
+            <button
+              onClick={() => setPasswordMode((v) => !v)}
+              className={`flex items-center gap-1.5 text-xs transition-colors px-2.5 py-1.5 rounded-lg border ${
+                passwordMode
+                  ? 'text-rose-300 border-rose-600/60 bg-rose-950/30'
+                  : 'text-slate-400 hover:text-white border-slate-700/50 hover:border-slate-600 bg-slate-800/40'
+              }`}
+              title="Password-style masked message"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Password</span>
+            </button>
+            <select
+              value={expiryMode}
+              onChange={(e) => setExpiryMode(e.target.value as 'none' | '60' | '300' | '3600')}
+              className="h-8 px-2 rounded-lg border border-slate-700/50 bg-slate-800/40 text-xs text-slate-300"
+              title="Auto-expire timer"
+            >
+              <option value="none">No expiry</option>
+              <option value="60">Expire 1m</option>
+              <option value="300">Expire 5m</option>
+              <option value="3600">Expire 1h</option>
+            </select>
             <div className="flex-1" />
             {sendError && (
               <span className="text-xs text-red-400 flex items-center gap-1">
@@ -1118,6 +1794,20 @@ export function ClipSync() {
           </div>
         </div>
       </div>
+
+      {isCameraOpen && (
+        <div className="absolute inset-0 z-30 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-xl p-3">
+            <video ref={cameraVideoRef} autoPlay playsInline muted className="w-full rounded-lg bg-black max-h-[60vh] object-contain" />
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={closeCamera}>Cancel</Button>
+              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white" onClick={capturePhoto}>
+                <Camera className="w-4 h-4 mr-1" /> Capture & Send
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1134,8 +1824,28 @@ interface CardProps {
 function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
   const time = new Date(item.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const [expanded, setExpanded] = useState(false);
+  const [revealedPassword, setRevealedPassword] = useState(item.isOwn);
+  const [viewOnceOpened, setViewOnceOpened] = useState(item.isOwn);
+  const [viewOnceConsumed, setViewOnceConsumed] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const isCopied = copiedId === item.id;
   const isLongText = item.type === 'text' && item.content.length > 300;
+  const isExpired = Boolean(item.expiresAt && nowTs > item.expiresAt);
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!item.viewOnce || !viewOnceOpened || viewOnceConsumed || item.isOwn) return;
+    const t = setTimeout(() => setViewOnceConsumed(true), 8000);
+    return () => clearTimeout(t);
+  }, [item.viewOnce, viewOnceOpened, viewOnceConsumed, item.isOwn]);
+
+  const canViewContent = !isExpired && (!item.viewOnce || item.isOwn || (viewOnceOpened && !viewOnceConsumed));
+  const textToShow =
+    item.sensitivity === 'password' && !revealedPassword ? '••••••••••••••••' : item.content;
 
   return (
     <div
@@ -1160,10 +1870,33 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
               <span>image</span>
             </Badge>
           )}
+          {item.type === 'audio' && (
+            <Badge className="hidden sm:flex bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0 h-4 border-0 gap-1">
+              <Mic className="w-2.5 h-2.5" />
+              <span>audio</span>
+            </Badge>
+          )}
+          {item.type === 'video' && (
+            <Badge className="hidden sm:flex bg-rose-500/20 text-rose-300 text-[10px] px-1.5 py-0 h-4 border-0 gap-1">
+              <span>▶ video</span>
+            </Badge>
+          )}
           {item.type === 'file' && (
             <Badge className="hidden sm:flex bg-slate-700/60 text-slate-300 text-[10px] px-1.5 py-0 h-4 border-0 gap-1">
               <FileIcon className="w-2.5 h-2.5" />
               <span>file</span>
+            </Badge>
+          )}
+          {item.type === 'binary' && (
+            <Badge className="hidden sm:flex bg-slate-700/60 text-slate-300 text-[10px] px-1.5 py-0 h-4 border-0 gap-1">
+              <FileIcon className="w-2.5 h-2.5" />
+              <span>binary</span>
+            </Badge>
+          )}
+          {item.type === 'location' && (
+            <Badge className="hidden sm:flex bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0 h-4 border-0 gap-1">
+              <MapPin className="w-2.5 h-2.5" />
+              <span>location</span>
             </Badge>
           )}
           <span
@@ -1174,7 +1907,7 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
           <span className="text-[10px] text-slate-600 shrink-0">{time}</span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          {(item.type === 'text' || item.type === 'image') && (
+          {(item.type === 'text' || item.type === 'image') && !(item.type === 'text' && (item.sensitivity === 'password' || item.viewOnce)) && (
             <button
               onClick={() => onCopy(item)}
               className="p-1.5 rounded-md hover:bg-slate-700/60 text-slate-400 hover:text-white transition-colors"
@@ -1187,7 +1920,7 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
               )}
             </button>
           )}
-          {(item.type === 'file' || item.type === 'image') && item.filename && (
+          {(item.type === 'file' || item.type === 'image' || item.type === 'audio' || item.type === 'video' || item.type === 'binary') && item.filename && (
             <button
               onClick={() => onDownload(item.content, item.filename!, item.mimeType ?? '')}
               className="p-1.5 rounded-md hover:bg-slate-700/60 text-slate-400 hover:text-white transition-colors"
@@ -1201,13 +1934,42 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
 
       {/* Content */}
       <div className="px-3 pb-3">
-        {item.type === 'text' && (
+        {isExpired && (
+          <div className="text-xs text-amber-300 bg-amber-950/30 border border-amber-700/40 rounded-md px-2 py-1.5">
+            This message expired and is no longer visible.
+          </div>
+        )}
+
+        {!isExpired && item.viewOnce && !item.isOwn && !viewOnceOpened && (
+          <button
+            onClick={() => setViewOnceOpened(true)}
+            className="text-xs text-amber-300 bg-amber-950/30 border border-amber-700/40 rounded-md px-2 py-1.5 hover:bg-amber-900/30 transition-colors"
+          >
+            Tap to view once (will disappear after viewing)
+          </button>
+        )}
+
+        {!isExpired && item.viewOnce && !item.isOwn && viewOnceConsumed && (
+          <div className="text-xs text-slate-400 bg-slate-900/40 border border-slate-700/40 rounded-md px-2 py-1.5">
+            View-once message consumed.
+          </div>
+        )}
+
+        {item.type === 'text' && canViewContent && (
           <>
             <p
               className={`text-slate-200 whitespace-pre-wrap break-words leading-relaxed ${!expanded && isLongText ? 'line-clamp-5' : ''}`}
             >
-              {item.content}
+              {textToShow}
             </p>
+            {item.sensitivity === 'password' && (
+              <button
+                onClick={() => setRevealedPassword((v) => !v)}
+                className="mt-1 text-xs text-rose-300 hover:text-rose-200 transition-colors"
+              >
+                {revealedPassword ? 'Hide password' : 'Reveal password'}
+              </button>
+            )}
             {isLongText && (
               <button
                 onClick={() => setExpanded((v) => !v)}
@@ -1219,7 +1981,7 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
           </>
         )}
 
-        {item.type === 'image' && (
+        {item.type === 'image' && canViewContent && (
           <div>
             <img
               src={`data:${item.mimeType ?? 'image/png'};base64,${item.content}`}
@@ -1241,7 +2003,37 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
           </div>
         )}
 
-        {item.type === 'file' && (
+        {item.type === 'audio' && canViewContent && (
+          <div className="flex flex-col gap-2">
+            <audio
+              controls
+              src={`data:${item.mimeType ?? 'audio/webm'};base64,${item.content}`}
+              className="w-full rounded-lg bg-slate-800 focus-visible:ring-indigo-500/40"
+            />
+            {item.filename && (
+              <p className="text-[11px] text-slate-500">
+                {item.filename} · {fmtSize(item.fileSize ?? 0)}
+              </p>
+            )}
+          </div>
+        )}
+
+        {item.type === 'video' && canViewContent && (
+          <div className="flex flex-col gap-2">
+            <video
+              controls
+              src={`data:${item.mimeType ?? 'video/webm'};base64,${item.content}`}
+              className="max-h-64 rounded-lg bg-slate-900 border border-slate-700/40"
+            />
+            {item.filename && (
+              <p className="text-[11px] text-slate-500">
+                {item.filename} · {fmtSize(item.fileSize ?? 0)}
+              </p>
+            )}
+          </div>
+        )}
+
+        {item.type === 'file' && canViewContent && (
           <div className="flex items-center gap-3 py-0.5">
             <div className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
               <FileIcon className="w-4 h-4 text-indigo-400" />
@@ -1261,6 +2053,62 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
             </button>
           </div>
         )}
+
+        {item.type === 'binary' && canViewContent && (
+          <div className="flex items-center gap-3 py-0.5">
+            <div className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
+              <FileIcon className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-slate-200 truncate font-medium">{item.filename ?? 'binary'}</p>
+              <p className="text-xs text-slate-500">
+                {fmtSize(item.fileSize ?? 0)} · {item.mimeType || 'binary'}
+              </p>
+            </div>
+            <button
+              onClick={() => onDownload(item.content, item.filename!, item.mimeType ?? '')}
+              className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors shrink-0 border border-indigo-500/30 hover:border-indigo-400/50 rounded-lg px-2.5 py-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </button>
+          </div>
+        )}
+
+        {item.type === 'location' && canViewContent && (() => {
+          let parsed: { latitude: number; longitude: number; accuracy?: number } | null = null;
+          try {
+            parsed = JSON.parse(item.content) as { latitude: number; longitude: number; accuracy?: number };
+          } catch {
+            parsed = null;
+          }
+          if (!parsed) {
+            return <p className="text-xs text-slate-400">Location payload unavailable.</p>;
+          }
+          const mapUrl = `https://maps.google.com/?q=${parsed.latitude},${parsed.longitude}`;
+          return (
+            <div className="flex items-center gap-3 py-0.5">
+              <div className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-slate-200 truncate font-medium">Live location</p>
+                <p className="text-xs text-slate-500">
+                  {parsed.latitude.toFixed(6)}, {parsed.longitude.toFixed(6)}
+                  {parsed.accuracy ? ` (${Math.round(parsed.accuracy)}m)` : ''}
+                </p>
+              </div>
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors shrink-0 border border-indigo-500/30 hover:border-indigo-400/50 rounded-lg px-2.5 py-1.5"
+              >
+                Open
+              </a>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

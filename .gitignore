@@ -200,3 +200,4 @@ docker-compose.override.yml
 *.local
 *.private
 *.backup
+.vercel
