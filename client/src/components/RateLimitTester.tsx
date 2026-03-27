@@ -1,5 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { Play, Download, Share2 } from 'lucide-react';
+import {
+  Play,
+  Download,
+  Share2,
+  Zap,
+  XCircle,
+  Clock,
+  History,
+  Layers,
+  Activity,
+  AlertCircle,
+} from 'lucide-react';
 
 interface RequestConfig {
   url: string;
@@ -189,12 +200,16 @@ const RateLimitTester: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">📊 Rate Limit Tester</h1>
-          <p className="text-slate-400">
+          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+            <Zap className="w-8 h-8 text-brand-500" />
+            Rate Limit Tester
+          </h1>
+          <p className="text-neutral-400 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-brand-500/40" />
             Test API endpoints for rate limiting behavior and resilience metrics
           </p>
         </div>
@@ -203,31 +218,35 @@ const RateLimitTester: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Sidebar - Configuration (Sticky) */}
           <div className="lg:col-span-1">
-            <div className="sticky top-6 bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 space-y-5">
+            <div className="sticky top-6 bg-neutral-800/40 border border-neutral-700/50 rounded-xl p-6 space-y-5">
               <h2 className="text-lg font-semibold text-white">Configuration</h2>
 
               {/* URL Input */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Target URL</label>
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
+                  Target URL
+                </label>
                 <input
                   type="text"
                   value={config.url}
                   onChange={(e) => setConfig({ ...config, url: e.target.value })}
                   placeholder="https://api.example.com/webhook"
-                  className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition"
+                  className="w-full px-4 py-3 bg-neutral-900/60 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                   disabled={isLoading}
                 />
               </div>
 
               {/* Method Selection */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">HTTP Method</label>
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
+                  HTTP Method
+                </label>
                 <select
                   value={config.method}
                   onChange={(e) =>
                     setConfig({ ...config, method: e.target.value as RequestConfig['method'] })
                   }
-                  className="w-full px-4 py-3 bg-slate-900/60 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition"
+                  className="w-full px-4 py-3 bg-neutral-900/60 border border-neutral-700 rounded-lg text-neutral-100 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                   disabled={isLoading}
                 >
                   <option>GET</option>
@@ -241,9 +260,9 @@ const RateLimitTester: React.FC = () => {
 
               {/* Rate Slider */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Request Rate:{' '}
-                  <span className="font-bold text-blue-400">
+                  <span className="font-bold text-brand-400">
                     {config.requestsPerMinute} req/min
                   </span>
                 </label>
@@ -255,10 +274,10 @@ const RateLimitTester: React.FC = () => {
                   onChange={(e) =>
                     setConfig({ ...config, requestsPerMinute: parseInt(e.target.value) })
                   }
-                  className="w-full h-2 bg-slate-700/50 rounded-lg appearance-none cursor-pointer"
+                  className="w-full h-2 bg-neutral-700/50 accent-brand-500 rounded-lg appearance-none cursor-pointer"
                   disabled={isLoading}
                 />
-                <div className="text-xs text-slate-400 mt-1">
+                <div className="text-xs text-neutral-400 mt-1">
                   Estimated: {Math.ceil((config.requestsPerMinute / 60) * config.durationSeconds)}{' '}
                   total requests
                 </div>
@@ -266,9 +285,9 @@ const RateLimitTester: React.FC = () => {
 
               {/* Duration Slider */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Test Duration:{' '}
-                  <span className="font-bold text-blue-400">{config.durationSeconds}s</span>
+                  <span className="font-bold text-brand-400">{config.durationSeconds}s</span>
                 </label>
                 <input
                   type="range"
@@ -278,34 +297,34 @@ const RateLimitTester: React.FC = () => {
                   onChange={(e) =>
                     setConfig({ ...config, durationSeconds: parseInt(e.target.value) })
                   }
-                  className="w-full h-2 bg-slate-700/50 rounded-lg appearance-none cursor-pointer"
+                  className="w-full h-2 bg-neutral-700/50 accent-brand-500 rounded-lg appearance-none cursor-pointer"
                   disabled={isLoading}
                 />
-                <div className="text-xs text-slate-400 mt-1">Max 10 minutes</div>
+                <div className="text-xs text-neutral-400 mt-1">Max 10 minutes</div>
               </div>
 
               {/* Headers */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Headers</label>
+                <label className="block text-sm font-medium text-neutral-300 mb-2">Headers</label>
                 <textarea
                   value={config.headers}
                   onChange={(e) => setConfig({ ...config, headers: e.target.value })}
                   placeholder="Content-Type: application/json&#10;Authorization: Bearer token"
-                  className="w-full h-24 px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs transition"
+                  className="w-full h-24 px-3 py-2 bg-neutral-900/60 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs transition"
                   disabled={isLoading}
                 />
               </div>
 
               {/* Body */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-neutral-300 mb-2">
                   Request Body
                 </label>
                 <textarea
                   value={config.body}
                   onChange={(e) => setConfig({ ...config, body: e.target.value })}
                   placeholder='{"key": "value"}'
-                  className="w-full h-24 px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-mono text-xs transition"
+                  className="w-full h-24 px-3 py-2 bg-neutral-900/60 border border-neutral-700 rounded-lg text-neutral-100 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs transition"
                   disabled={isLoading}
                 />
               </div>
@@ -314,7 +333,7 @@ const RateLimitTester: React.FC = () => {
               <button
                 onClick={runTest}
                 disabled={isLoading || !config.url.trim()}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition transform hover:scale-[1.02] active:scale-95"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-500 hover:bg-brand-400 disabled:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed text-neutral-900 font-bold rounded-xl transition-all shadow-lg shadow-brand-500/10"
               >
                 <Play className="w-4 h-4" />
                 {isLoading ? 'Testing...' : 'Start Test'}
@@ -327,7 +346,7 @@ const RateLimitTester: React.FC = () => {
                     const url = `${window.location.origin}?rate-test=${encodeURIComponent(JSON.stringify(config))}`;
                     copyToClipboard(url);
                   }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-slate-200 font-medium rounded-lg transition"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-neutral-700/50 hover:bg-neutral-600/50 text-neutral-200 font-medium rounded-lg transition"
                 >
                   <Share2 className="w-4 h-4" />
                   {copied ? 'Link Copied' : 'Share Configuration'}
@@ -340,8 +359,12 @@ const RateLimitTester: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Error State */}
             {error && (
-              <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4">
-                <p className="text-red-300 font-medium">❌ Error: {error}</p>
+              <div className="bg-red-500/10 border-l-4 border-red-500 rounded-xl p-4 flex items-start gap-3 backdrop-blur-md mb-6 animate-in fade-in slide-in-from-top-2">
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-400 font-bold text-sm tracking-tight">Request Failed</p>
+                  <p className="text-red-300/80 text-xs mt-1 leading-relaxed">{error}</p>
+                </div>
               </div>
             )}
 
@@ -355,82 +378,76 @@ const RateLimitTester: React.FC = () => {
                     value={safeNum(testData.stats.successRate, 1)}
                     unit="%"
                     subtext={`${testData.stats.successful}/${testData.stats.total}`}
-                    color={
-                      testData.stats.successRate > 95
-                        ? 'green'
-                        : testData.stats.successRate > 50
-                          ? 'yellow'
-                          : 'red'
-                    }
+                    color={testData.stats.successRate > 95 ? 'brand' : 'neutral'}
                   />
                   <MetricCard
                     label="Requests/sec"
                     value={safeNum(testData.stats.requestsPerSecond, 2)}
                     unit="req/s"
                     subtext={`${safeNum(testData.stats.totalTestDuration, 1)}s duration`}
-                    color="blue"
+                    color="brand"
                   />
                   <MetricCard
                     label="Avg Latency"
                     value={safeNum(testData.stats.avgLatency, 0)}
                     unit="ms"
                     subtext={`σ: ${safeNum(testData.stats.stdDevLatency || testData.stats.avgLatency * 0.1, 0)}ms`}
-                    color="slate"
+                    color="neutral"
                   />
                   <MetricCard
                     label="Latency Trend"
                     value={
-                      testData.stats.latencyTrend === 'improving'
-                        ? '📈'
-                        : testData.stats.latencyTrend === 'degrading'
-                          ? '📉'
-                          : '➡️'
+                      testData.stats.latencyTrend === 'improving' ? (
+                        <Zap className="w-5 h-5 text-brand-500" />
+                      ) : testData.stats.latencyTrend === 'degrading' ? (
+                        <XCircle className="w-5 h-5 text-neutral-500" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-neutral-500" />
+                      )
                     }
                     unit={testData.stats.latencyTrend ?? 'stable'}
                     subtext={
                       (testData.stats.latencyTrend ?? 'stable').charAt(0).toUpperCase() +
                       (testData.stats.latencyTrend ?? 'stable').slice(1)
                     }
-                    color={
-                      testData.stats.latencyTrend === 'improving'
-                        ? 'green'
-                        : testData.stats.latencyTrend === 'degrading'
-                          ? 'red'
-                          : 'blue'
-                    }
+                    color={testData.stats.latencyTrend === 'improving' ? 'brand' : 'neutral'}
                   />
                 </div>
 
                 {/* Tabs for different data sections */}
-                <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl overflow-hidden">
-                  <div className="flex flex-wrap gap-2 bg-slate-900/50 p-3 border-b border-slate-700/50">
+                <div className="bg-neutral-800/40 border border-neutral-700/50 rounded-xl overflow-hidden">
+                  <div className="flex flex-wrap gap-2 bg-neutral-900/50 p-3 border-b border-neutral-700/50">
                     <TabButton
                       tab="latency"
                       currentTab={activeTab}
                       onClick={() => setActiveTab('latency')}
                     >
-                      📊 Latency Analytics
+                      <Zap className="w-4 h-4 mr-2" />
+                      Latency Analytics
                     </TabButton>
                     <TabButton
                       tab="errors"
                       currentTab={activeTab}
                       onClick={() => setActiveTab('errors')}
                     >
-                      ⚠️ Error Analysis
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Error Analysis
                     </TabButton>
                     <TabButton
                       tab="distribution"
                       currentTab={activeTab}
                       onClick={() => setActiveTab('distribution')}
                     >
-                      📈 Distribution
+                      <Layers className="w-4 h-4 mr-2" />
+                      Distribution
                     </TabButton>
                     <TabButton
                       tab="details"
                       currentTab={activeTab}
                       onClick={() => setActiveTab('details')}
                     >
-                      📋 Request Details
+                      <History className="w-4 h-4 mr-2" />
+                      Request Details
                     </TabButton>
                   </div>
 
@@ -448,22 +465,22 @@ const RateLimitTester: React.FC = () => {
                               {
                                 label: 'Min',
                                 value: testData.stats.minLatency || 0,
-                                color: 'blue',
+                                color: 'brand',
                               },
                               {
                                 label: 'P25',
                                 value: testData.stats.p25Latency || 0,
-                                color: 'blue',
+                                color: 'brand',
                               },
                               {
                                 label: 'Median (P50)',
                                 value: testData.stats.p50Latency || 0,
-                                color: 'slate',
+                                color: 'neutral',
                               },
                               {
                                 label: 'P75',
                                 value: testData.stats.p75Latency || 0,
-                                color: 'slate',
+                                color: 'neutral',
                               },
                               {
                                 label: 'P90',
@@ -488,10 +505,12 @@ const RateLimitTester: React.FC = () => {
                             ].map((p) => (
                               <div
                                 key={p.label}
-                                className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50"
+                                className="bg-neutral-900/50 p-3 rounded-lg border border-neutral-700/50"
                               >
-                                <div className="text-xs text-slate-400 mb-1">{p.label}</div>
-                                <div className={`text-lg font-bold text-${p.color}-400`}>
+                                <div className="text-xs text-neutral-400 mb-1">{p.label}</div>
+                                <div
+                                  className={`text-lg font-bold ${p.color === 'brand' ? 'text-brand-500' : 'text-neutral-400'}`}
+                                >
                                   {safeNum(p.value, 1)}ms
                                 </div>
                               </div>
@@ -549,18 +568,18 @@ const RateLimitTester: React.FC = () => {
                           <div className="space-y-2">
                             {testData.stats.latencyHistogram.map((h) => (
                               <div key={h.bucket} className="flex items-center gap-3">
-                                <div className="w-32 text-xs text-slate-400 flex-shrink-0">
+                                <div className="w-32 text-xs text-neutral-400 flex-shrink-0">
                                   {h.bucket}
                                 </div>
-                                <div className="flex-grow bg-slate-900/50 rounded h-6 overflow-hidden">
+                                <div className="flex-grow bg-neutral-900/50 rounded h-6 overflow-hidden">
                                   <div
-                                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-full transition-all"
+                                    className="bg-brand-500 h-full transition-all"
                                     style={{
                                       width: `${testData.stats.total > 0 ? (h.count / testData.stats.total) * 100 : 0}%`,
                                     }}
                                   />
                                 </div>
-                                <div className="w-12 text-right text-xs text-slate-300">
+                                <div className="w-12 text-right text-xs text-neutral-300">
                                   {h.count}
                                 </div>
                               </div>
@@ -569,28 +588,28 @@ const RateLimitTester: React.FC = () => {
                         </div>
 
                         {/* Outlier Analysis */}
-                        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
+                        <div className="bg-neutral-900/50 p-4 rounded-lg border border-neutral-700/50">
                           <h3 className="text-sm font-semibold text-white mb-3">
                             Outlier Analysis
                           </h3>
                           <div className="grid grid-cols-3 gap-4">
                             <div>
-                              <div className="text-xs text-slate-400 mb-1">Outlier Count</div>
+                              <div className="text-xs text-neutral-400 mb-1">Outlier Count</div>
                               <div className="text-2xl font-bold text-orange-400">
                                 {testData.stats.outlierCount || 0}
                               </div>
                             </div>
                             <div>
-                              <div className="text-xs text-slate-400 mb-1">Outlier %</div>
+                              <div className="text-xs text-neutral-400 mb-1">Outlier %</div>
                               <div className="text-2xl font-bold text-orange-400">
                                 {safeNum(testData.stats.outlierPercentage || 0, 2)}%
                               </div>
                             </div>
                             <div>
-                              <div className="text-xs text-slate-400 mb-1">
+                              <div className="text-xs text-neutral-400 mb-1">
                                 Upper Bound (μ + 2σ)
                               </div>
-                              <div className="text-lg font-bold text-slate-300">
+                              <div className="text-lg font-bold text-neutral-300">
                                 {safeNum(
                                   (testData.stats.avgLatency || 0) +
                                     2 * (testData.stats.stdDevLatency || 0),
@@ -622,7 +641,7 @@ const RateLimitTester: React.FC = () => {
                             value={testData.stats.failed || 0}
                             unit=""
                             subtext={`${testData.stats.failed === 0 ? '✓ No errors' : `${safeNum(((testData.stats.failed || 0) / (testData.stats.total || 1)) * 100, 1)}% failure rate`}`}
-                            color={testData.stats.failed === 0 ? 'green' : 'red'}
+                            color={testData.stats.failed === 0 ? 'brand' : 'neutral'}
                           />
                           <MetricCard
                             label="Most Common Error"
@@ -641,20 +660,20 @@ const RateLimitTester: React.FC = () => {
                                 ? testData.stats.mostCommonError.error.substring(0, 50)
                                 : 'All requests succeeded'
                             }
-                            color={testData.stats.failed === 0 ? 'green' : 'red'}
+                            color={testData.stats.failed === 0 ? 'brand' : 'neutral'}
                           />
                         </div>
 
                         {/* Time to Failure Metrics */}
                         {testData.stats.timeToFirstFailureMs !== null &&
                           testData.stats.timeToFirstFailureMs !== undefined && (
-                            <div className="bg-slate-900/50 p-4 rounded-lg border border-red-700/50">
+                            <div className="bg-neutral-900/50 p-4 rounded-lg border border-red-700/50">
                               <h3 className="text-sm font-semibold text-red-300 mb-3">
                                 ⚡ Time to First Failure
                               </h3>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <div className="text-xs text-slate-400 mb-1">
+                                  <div className="text-xs text-neutral-400 mb-1">
                                     First Failure At
                                   </div>
                                   <div className="text-xl font-bold text-red-400">
@@ -664,7 +683,7 @@ const RateLimitTester: React.FC = () => {
                                 {testData.stats.meanTimeToFailureMs !== null &&
                                   testData.stats.meanTimeToFailureMs !== undefined && (
                                     <div>
-                                      <div className="text-xs text-slate-400 mb-1">
+                                      <div className="text-xs text-neutral-400 mb-1">
                                         Mean Time Between Failures
                                       </div>
                                       <div className="text-xl font-bold text-red-400">
@@ -692,13 +711,13 @@ const RateLimitTester: React.FC = () => {
                                 .map(([error, count]) => (
                                   <div
                                     key={error}
-                                    className="flex items-start gap-3 p-3 bg-slate-900/50 rounded border border-slate-700/50"
+                                    className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded border border-neutral-700/50"
                                   >
                                     <div className="flex-grow min-w-0">
                                       <div className="text-sm font-mono text-red-300 break-words">
                                         {error}
                                       </div>
-                                      <div className="text-xs text-slate-400 mt-1">
+                                      <div className="text-xs text-neutral-400 mt-1">
                                         Count: {count} (
                                         {safeNum((count / (testData.stats.failed || 1)) * 100, 1)}%)
                                       </div>
@@ -710,10 +729,8 @@ const RateLimitTester: React.FC = () => {
                         )}
 
                         {testData.stats.failed === 0 && (
-                          <div className="bg-emerald-900/20 border border-emerald-700/50 rounded-lg p-4 text-center">
-                            <p className="text-emerald-300 font-medium">
-                              ✓ All requests succeeded!
-                            </p>
+                          <div className="bg-brand-500/10 border border-brand-500/20 rounded-lg p-4 text-center">
+                            <p className="text-brand-500 font-medium">✓ All requests succeeded!</p>
                           </div>
                         )}
                       </div>
@@ -733,17 +750,17 @@ const RateLimitTester: React.FC = () => {
                               .map(([status, count]) => (
                                 <div
                                   key={status}
-                                  className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 text-center"
+                                  className="bg-neutral-900/50 p-4 rounded-lg border border-neutral-700/50 text-center"
                                 >
                                   <div
-                                    className={`text-2xl font-bold ${status.startsWith('2') ? 'text-emerald-400' : status.startsWith('4') ? 'text-amber-400' : 'text-red-400'}`}
+                                    className={`text-2xl font-bold ${status.startsWith('2') ? 'text-brand-500' : 'text-neutral-400'}`}
                                   >
                                     {status === '0' ? 'ERROR' : status}
                                   </div>
-                                  <div className="text-sm text-slate-400 mt-1">
+                                  <div className="text-sm text-neutral-400 mt-1">
                                     {count} requests
                                   </div>
-                                  <div className="text-xs text-slate-500">
+                                  <div className="text-xs text-neutral-500">
                                     {safeNum((count / (testData.stats.total || 1)) * 100, 1)}%
                                   </div>
                                 </div>
@@ -753,12 +770,12 @@ const RateLimitTester: React.FC = () => {
 
                         {/* Grouping by Success/Failure */}
                         <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-emerald-900/20 p-4 rounded-lg border border-emerald-700/50 text-center">
-                            <div className="text-3xl font-bold text-emerald-400">
+                          <div className="bg-brand-500/10 p-4 rounded-lg border border-brand-500/20 text-center">
+                            <div className="text-3xl font-bold text-brand-500">
                               {testData.stats.successful}
                             </div>
-                            <div className="text-sm text-emerald-300 mt-1">Successful</div>
-                            <div className="text-xs text-emerald-200/60 mt-1">
+                            <div className="text-sm text-brand-500 mt-1">Successful</div>
+                            <div className="text-xs text-neutral-400 mt-1">
                               {safeNum(
                                 (testData.stats.successful / (testData.stats.total || 1)) * 100,
                                 1,
@@ -771,7 +788,7 @@ const RateLimitTester: React.FC = () => {
                               {testData.stats.failed}
                             </div>
                             <div className="text-sm text-red-300 mt-1">Failed</div>
-                            <div className="text-xs text-red-200/60 mt-1">
+                            <div className="text-xs text-neutral-400 mt-1">
                               {safeNum(
                                 (testData.stats.failed / (testData.stats.total || 1)) * 100,
                                 1,
@@ -779,20 +796,21 @@ const RateLimitTester: React.FC = () => {
                               %
                             </div>
                           </div>
-                          <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-700/50 text-center">
-                            <div className="text-3xl font-bold text-blue-400">
+                          <div className="bg-neutral-900/20 p-4 rounded-lg border border-neutral-700/50 text-center">
+                            <div className="text-3xl font-bold text-neutral-100">
                               {testData.stats.total}
                             </div>
-                            <div className="text-sm text-blue-300 mt-1">Total</div>
-                            <div className="text-xs text-blue-200/60 mt-1">100%</div>
+                            <div className="text-sm text-neutral-300 mt-1">Total</div>
+                            <div className="text-xs text-neutral-400 mt-1">100%</div>
                           </div>
                         </div>
 
                         {/* Retry-After Detection */}
                         {testData.stats.retryAfterHeaders.length > 0 && (
                           <div className="bg-amber-900/20 border border-amber-700/50 rounded-xl p-4">
-                            <p className="text-amber-300 font-semibold mb-2">
-                              ⚠️ Retry-After Headers Detected
+                            <p className="text-amber-300 font-semibold mb-2 flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              Retry-After Headers Detected
                             </p>
                             <div className="text-sm text-amber-200">
                               Found in responses:{' '}
@@ -812,12 +830,12 @@ const RateLimitTester: React.FC = () => {
                             placeholder="Filter by error message..."
                             value={filterText}
                             onChange={(e) => setFilterText(e.target.value)}
-                            className="px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-sm text-slate-300 placeholder-slate-500 flex-grow"
+                            className="px-3 py-2 bg-neutral-900/60 border border-neutral-700 rounded-lg text-sm text-neutral-300 placeholder-neutral-500 flex-grow"
                           />
                           <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-sm text-slate-300"
+                            className="px-3 py-2 bg-neutral-900/60 border border-neutral-700 rounded-lg text-sm text-neutral-300"
                           >
                             <option value="">All Status</option>
                             <option value="success">Success</option>
@@ -842,8 +860,8 @@ const RateLimitTester: React.FC = () => {
                                 key={idx}
                                 className={`px-3 py-2 rounded text-xs font-mono border ${
                                   result.success
-                                    ? 'bg-emerald-900/20 text-emerald-300 border-emerald-900/50'
-                                    : 'bg-red-900/20 text-red-300 border-red-900/50'
+                                    ? 'bg-neutral-900/20 text-brand-300 border-neutral-900/50'
+                                    : 'bg-neutral-900/20 text-neutral-500 border-neutral-800'
                                 }`}
                               >
                                 <span className="font-bold">#{result.requestNumber}</span>{' '}
@@ -861,14 +879,14 @@ const RateLimitTester: React.FC = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => downloadResults('csv')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-700/50 hover:bg-slate-600/50 text-slate-200 font-medium rounded-lg transition"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-neutral-700/50 hover:bg-neutral-600/50 text-neutral-200 font-medium rounded-lg transition"
                   >
                     <Download className="w-4 h-4" />
                     Export CSV
                   </button>
                   <button
                     onClick={() => downloadResults('json')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-700/50 hover:bg-slate-600/50 text-slate-200 font-medium rounded-lg transition"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-neutral-700/50 hover:bg-neutral-600/50 text-neutral-200 font-medium rounded-lg transition"
                   >
                     <Download className="w-4 h-4" />
                     Export JSON
@@ -878,7 +896,7 @@ const RateLimitTester: React.FC = () => {
                       const url = `${window.location.origin}?rate-test=${encodeURIComponent(JSON.stringify(config))}`;
                       copyToClipboard(url);
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-700/50 hover:bg-slate-600/50 text-slate-200 font-medium rounded-lg transition"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-neutral-700/50 hover:bg-neutral-600/50 text-neutral-200 font-medium rounded-lg transition"
                   >
                     <Share2 className="w-4 h-4" />
                     {copied ? 'Link Copied' : 'Share'}
@@ -889,17 +907,20 @@ const RateLimitTester: React.FC = () => {
 
             {/* Empty State */}
             {!testData && !isLoading && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="text-6xl mb-4">📊</div>
-                <h3 className="text-lg font-semibold text-white mb-2">No Results Yet</h3>
-                <p className="text-slate-400">
-                  Configure an endpoint and click "Start Test" to begin
+              <div className="flex flex-col items-center justify-center py-16 text-center bg-neutral-900/40 border border-neutral-800/50 rounded-2xl backdrop-blur-sm w-full">
+                <div className="w-20 h-20 rounded-full bg-brand-500/5 ring-1 ring-brand-500/20 mb-6 flex items-center justify-center">
+                  <Zap className="w-10 h-10 text-brand-500/40" />
+                </div>
+                <h3 className="text-xl font-bold text-neutral-200 mb-2">No Test Data</h3>
+                <p className="text-sm text-neutral-500 max-w-sm leading-relaxed mb-6">
+                  Start an automated rate-limit test to analyze endpoint performance and resilience
+                  metrics.
                 </p>
-                <div className="mt-6 bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 text-left text-sm text-slate-300 space-y-2">
+                <div className="bg-neutral-800/40 border border-neutral-700/50 rounded-lg p-4 text-left text-sm text-neutral-300 space-y-2">
                   <p>
                     <strong>💡 Tip:</strong> Test with public APIs like:
                   </p>
-                  <code className="block bg-slate-900 px-3 py-2 rounded text-xs text-slate-200">
+                  <code className="block bg-neutral-900 px-3 py-2 rounded text-xs text-neutral-200">
                     https://httpbin.tools.fairarena.app/post
                   </code>
                 </div>
@@ -910,10 +931,10 @@ const RateLimitTester: React.FC = () => {
             {isLoading && (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="flex items-center justify-center w-12 h-12 mb-4">
-                  <div className="w-10 h-10 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+                  <div className="w-10 h-10 border-4 border-neutral-700 border-t-brand-500 rounded-full animate-spin" />
                 </div>
-                <p className="text-slate-300 font-medium">Running tests...</p>
-                <p className="text-slate-500 text-sm">This may take a few moments</p>
+                <p className="text-neutral-300 font-medium">Running tests...</p>
+                <p className="text-neutral-500 text-sm">This may take a few moments</p>
               </div>
             )}
           </div>
@@ -926,31 +947,33 @@ const RateLimitTester: React.FC = () => {
 // Metric Card Component
 interface MetricCardProps {
   label: string;
-  value: string | number;
+  value: React.ReactNode;
   unit: string;
   subtext: string;
-  color: 'green' | 'red' | 'yellow' | 'blue' | 'slate';
+  color: 'green' | 'red' | 'yellow' | 'blue' | 'slate' | 'brand' | 'neutral';
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({ label, value, unit, subtext, color }) => {
   const colorClasses = {
-    green: 'text-emerald-400 border-emerald-900/30 bg-emerald-900/10',
-    red: 'text-red-400 border-red-900/30 bg-red-900/10',
-    yellow: 'text-amber-400 border-amber-900/30 bg-amber-900/10',
-    blue: 'text-blue-400 border-blue-900/30 bg-blue-900/10',
-    slate: 'text-slate-400 border-slate-900/30 bg-slate-900/10',
+    brand: 'text-brand-500 border-brand-500/20 bg-brand-500/5',
+    green: 'text-brand-500 border-brand-500/20 bg-brand-500/5',
+    red: 'text-neutral-400 border-neutral-800 bg-neutral-900/10',
+    yellow: 'text-neutral-300 border-neutral-800 bg-neutral-900/10',
+    blue: 'text-brand-500 border-brand-500/20 bg-brand-500/5',
+    slate: 'text-neutral-400 border-neutral-700/30 bg-neutral-900/10',
+    neutral: 'text-neutral-300 border-neutral-700/30 bg-neutral-900/10',
   };
 
   return (
     <div
-      className={`bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 ${colorClasses[color]}`}
+      className={`bg-neutral-800/40 border border-neutral-700/50 rounded-xl p-4 ${colorClasses[color]}`}
     >
-      <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wide">{label}</p>
+      <p className="text-xs font-medium text-neutral-400 mb-2 uppercase tracking-wide">{label}</p>
       <p className="text-2xl font-bold">
         {value}
         <span className="text-sm ml-1">{unit}</span>
       </p>
-      <p className="text-xs text-slate-500 mt-1">{subtext}</p>
+      <p className="text-xs text-neutral-500 mt-1">{subtext}</p>
     </div>
   );
 };
@@ -961,7 +984,7 @@ interface LatencyChartProps {
 }
 
 const LatencyChart: React.FC<LatencyChartProps> = ({ results }) => {
-  if (results.length === 0) return <div className="text-sm text-slate-400">No results yet</div>;
+  if (results.length === 0) return <div className="text-sm text-neutral-400">No results yet</div>;
 
   // Show every nth result to avoid crowding (max 100 bars)
   const step = Math.max(1, Math.floor(results.length / 100));
@@ -971,13 +994,13 @@ const LatencyChart: React.FC<LatencyChartProps> = ({ results }) => {
 
   return (
     <div className="w-full">
-      <div className="flex items-end gap-1 h-40 bg-slate-900/30 p-4 rounded-lg overflow-x-auto">
+      <div className="flex items-end gap-1 h-40 bg-neutral-900/30 p-4 rounded-lg overflow-x-auto">
         {displayResults.map((result, idx) => {
           // Color based on latency relative to average
-          let color = 'bg-emerald-500'; // Good
-          if (result.latency > avgLatency * 1.5) color = 'bg-orange-500'; // Slow
-          if (result.latency > avgLatency * 2) color = 'bg-red-500'; // Very slow
-          if (!result.success) color = 'bg-red-700'; // Failed
+          let color = 'bg-brand-500'; // Success
+          if (result.latency > avgLatency * 1.5) color = 'bg-brand-400'; // Muted brand
+          if (result.latency > avgLatency * 2) color = 'bg-neutral-600'; // Neutral
+          if (!result.success) color = 'bg-neutral-800'; // Neutral dark
 
           return (
             <div
@@ -992,7 +1015,7 @@ const LatencyChart: React.FC<LatencyChartProps> = ({ results }) => {
           );
         })}
       </div>
-      <div className="mt-3 flex justify-between text-xs text-slate-400">
+      <div className="mt-3 flex justify-between text-xs text-neutral-400">
         <div>Avg: {(avgLatency || 0).toFixed(1)}ms</div>
         <div>Max: {(maxLatency || 0).toFixed(1)}ms</div>
         <div>
@@ -1016,10 +1039,10 @@ interface TabButtonProps {
 const TabButton: React.FC<TabButtonProps> = ({ tab, currentTab, onClick, children }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
+    className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center transition-all ${
       currentTab === tab
-        ? 'bg-blue-600 text-white'
-        : 'bg-slate-900/50 text-slate-300 hover:bg-slate-800/50'
+        ? 'bg-brand-500 text-neutral-950 shadow-lg shadow-brand-500/20'
+        : 'bg-neutral-800/40 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'
     }`}
   >
     {children}
@@ -1034,11 +1057,11 @@ interface StatRowProps {
 }
 
 const StatRow: React.FC<StatRowProps> = ({ label, value, unit }) => (
-  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-    <div className="text-xs text-slate-400 mb-1">{label}</div>
-    <div className="text-lg font-bold text-slate-200">
+  <div className="bg-neutral-900/50 p-3 rounded-lg border border-neutral-700/50">
+    <div className="text-xs text-neutral-400 mb-1">{label}</div>
+    <div className="text-lg font-bold text-neutral-200">
       {value}
-      <span className="text-sm ml-1 text-slate-400">{unit}</span>
+      <span className="text-sm ml-1 text-neutral-400">{unit}</span>
     </div>
   </div>
 );

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar.js';
 import { TerminalPane } from './components/TerminalPane.js';
 import { ApiTester } from './components/ApiTester.js';
@@ -36,6 +36,8 @@ import RateLimitTester from './components/RateLimitTester';
 import type { OsImage } from './types/index.js';
 import ToastProvider from './components/ToastProvider';
 import { Analytics } from '@vercel/analytics/react';
+import { Spotlight } from './components/ui/spotlight-new.js';
+import Footer from './components/Footer.js';
 
 type Tab =
   | 'terminal'
@@ -50,7 +52,7 @@ type Tab =
   | 'rate-limit';
 
 const LoadingFallback = () => (
-  <div className="flex items-center justify-center h-24 text-slate-500">
+  <div className="flex items-center justify-center h-24 text-neutral-500">
     <Spinner className="w-5 h-5" />
   </div>
 );
@@ -58,7 +60,7 @@ const LoadingFallback = () => (
 function DevToolsTabs() {
   return (
     <Tabs defaultValue="jwt" className="h-full flex flex-col min-h-0">
-      <TabsList className="h-auto shrink-0 bg-slate-900/60 border border-slate-700/40 rounded-xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar w-full mb-4">
+      <TabsList className="h-auto shrink-0 bg-neutral-900/60 border border-neutral-800 rounded-xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar w-full mb-4">
         <TabsTrigger
           value="jwt"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30"
@@ -141,7 +143,7 @@ function DevToolsTabs() {
 function NetworkToolsTabs() {
   return (
     <Tabs defaultValue="dns" className="h-full flex flex-col min-h-0">
-      <TabsList className="h-auto shrink-0 bg-slate-900/60 border border-slate-700/40 rounded-xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar w-full mb-4">
+      <TabsList className="h-auto shrink-0 bg-neutral-900/60 border border-neutral-800 rounded-xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar w-full mb-4">
         <TabsTrigger
           value="dns"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm rounded-md data-[state=active]:bg-brand-500/10 data-[state=active]:border data-[state=active]:border-brand-500/30"
@@ -251,20 +253,20 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <div className="flex flex-col min-h-dvh bg-surface-950">
+        <div className="flex relative flex-col overflow-x-hidden w-full h-auto bg-neutral-950">
           <Analytics />
           <Navbar activeTab={tab} onTabChange={setTab} />
-
+          <Spotlight />
           {/* Subtle radial gradient backdrop */}
           <div className="pointer-events-none fixed inset-0 -z-10">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-brand-600/5 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-indigo-600/4 rounded-full blur-3xl" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-brand-500/5 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-brand-500/3 rounded-full blur-3xl" />
             {tab === 'webhook' && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-violet-600/3 rounded-full blur-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-brand-500/3 rounded-full blur-3xl" />
             )}
           </div>
 
-          <main className="flex-1 flex flex-col min-h-0 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 py-5">
+          <main className="flex-1 flex mt-10 flex-col min-h-0 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 py-5">
             <div className="flex-1 min-h-0 overflow-hidden">
               {tab === 'terminal' ? (
                 <TerminalPane osImages={osImages} />
@@ -297,6 +299,8 @@ export default function App() {
               )}
             </div>
           </main>
+
+          <Footer onTabChange={setTab} />
         </div>
       </ToastProvider>
     </ErrorBoundary>

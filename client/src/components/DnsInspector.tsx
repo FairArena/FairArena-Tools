@@ -323,8 +323,8 @@ export const DnsInspector: React.FC = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                <Search className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shadow-lg shadow-brand-500/10">
+                <Search className="h-5 w-5 text-brand-500" />
               </div>
               <div>
                 <CardTitle>DNS Inspector</CardTitle>
@@ -623,7 +623,7 @@ export const DnsInspector: React.FC = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-400" />
+                      <CheckCircle className="h-5 w-5 text-brand-500" />
                       SPF/DMARC Analysis
                     </CardTitle>
                   </CardHeader>

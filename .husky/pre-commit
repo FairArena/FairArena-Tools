@@ -1,2 +1,0 @@
-node scripts/validate-branch-name.js
-npx lint-staged

@@ -100,20 +100,20 @@ export const JsonFormatter: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-              <FileText className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <FileText className="w-5 h-5 text-neutral-900" />
             </div>
             <div>
               <CardTitle>JSON Formatter</CardTitle>
-              <p className="text-slate-400 text-sm">Validate, format, and analyze JSON data</p>
+              <p className="text-neutral-400 text-sm">Validate, format, and analyze JSON data</p>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {/* Controls */}
-          <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
+          <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-neutral-800/40 rounded-lg border border-neutral-700/50">
             <div className="space-y-2">
-              <label className="block text-sm text-slate-300 font-medium">Indent Size</label>
+              <label className="block text-sm text-neutral-300 font-medium">Indent Size</label>
               <Select
                 value={indentSize.toString()}
                 onValueChange={(value) => setIndentSize(Number(value))}
@@ -136,9 +136,9 @@ export const JsonFormatter: React.FC = () => {
                 id="sortKeys"
                 checked={sortKeys}
                 onChange={(e) => setSortKeys(e.target.checked)}
-                className="w-4 h-4 text-green-600 bg-slate-800 border-slate-600 rounded focus:ring-green-500 focus:ring-2"
+                className="w-4 h-4 accent-brand-500"
               />
-              <label htmlFor="sortKeys" className="text-sm text-slate-300 font-medium">
+              <label htmlFor="sortKeys" className="text-sm text-neutral-300 font-medium">
                 Sort Keys Alphabetically
               </label>
             </div>
@@ -160,8 +160,8 @@ export const JsonFormatter: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <label className="text-sm text-slate-300 font-medium">JSON Input</label>
+                  <FileText className="w-4 h-4 text-neutral-400" />
+                  <label className="text-sm text-neutral-300 font-medium">JSON Input</label>
                 </div>
                 <Button
                   variant="outline"
@@ -185,8 +185,8 @@ export const JsonFormatter: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <label className="text-sm text-slate-300 font-medium">Formatted Output</label>
+                  <FileText className="w-4 h-4 text-neutral-400" />
+                  <label className="text-sm text-neutral-300 font-medium">Formatted Output</label>
                 </div>
                 <Button
                   variant="outline"
@@ -227,38 +227,38 @@ export const JsonFormatter: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                  <div className="bg-neutral-900/50 p-3 rounded-lg border border-neutral-700/30">
+                    <span className="text-neutral-400 text-xs font-medium uppercase tracking-wide">
                       Characters
                     </span>
                     <div className="text-white text-lg font-semibold mt-1">
                       {output.length.toLocaleString()}
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                  <div className="bg-neutral-900/50 p-3 rounded-lg border border-neutral-700/30">
+                    <span className="text-neutral-400 text-xs font-medium uppercase tracking-wide">
                       Lines
                     </span>
                     <div className="text-white text-lg font-semibold mt-1">
                       {output.split('\n').length}
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                  <div className="bg-neutral-900/50 p-3 rounded-lg border border-neutral-700/30">
+                    <span className="text-neutral-400 text-xs font-medium uppercase tracking-wide">
                       Minified Size
                     </span>
                     <div className="text-white text-lg font-semibold mt-1">
-                        {parsed ? JSON.stringify(parsed).length : 0} chars
+                      {parsed ? JSON.stringify(parsed).length : 0} chars
                     </div>
                   </div>
-                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
-                    <span className="text-slate-400 text-xs font-medium uppercase tracking-wide">
+                  <div className="bg-neutral-900/50 p-3 rounded-lg border border-neutral-700/30">
+                    <span className="text-neutral-400 text-xs font-medium uppercase tracking-wide">
                       Compression
                     </span>
-                    <div className="text-green-400 text-lg font-semibold mt-1">
-                        {parsed && output.length
-                          ? ((1 - JSON.stringify(parsed).length / output.length) * 100).toFixed(1)
-                          : '0.0'}
+                    <div className="text-brand-500 text-lg font-semibold mt-1">
+                      {parsed && output.length
+                        ? ((1 - JSON.stringify(parsed).length / output.length) * 100).toFixed(1)
+                        : '0.0'}
                       %
                     </div>
                   </div>

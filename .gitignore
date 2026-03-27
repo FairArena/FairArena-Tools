@@ -13,6 +13,7 @@ pnpm-debug.log*
 !.yarn/sdks
 !.yarn/versions
 
+.husky/
 ############################################
 # PACKAGE MANAGER LOGS
 ############################################

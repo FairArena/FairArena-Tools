@@ -1,5 +1,6 @@
+import { motion, AnimatePresence } from 'motion/react';
+import { useState, useRef, useEffect } from 'react';
 import {
-  Zap,
   Terminal,
   Globe,
   Code2,
@@ -10,6 +11,8 @@ import {
   Link2,
   Gauge,
   Mail,
+  Menu,
+  X,
 } from 'lucide-react';
 
 type TabId =
@@ -29,84 +32,198 @@ interface NavbarProps {
   onTabChange: (tab: TabId) => void;
 }
 
-const NAV_TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'terminal', label: 'Terminal', icon: <Terminal className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'api', label: 'API Tester', icon: <Globe className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'dev-tools', label: 'Dev Tools', icon: <Code2 className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'network', label: 'Network', icon: <Network className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'encoders', label: 'Encoders', icon: <Binary className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'rate-limit', label: 'Rate Limit', icon: <Gauge className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'webhook', label: 'Webhooks', icon: <Webhook className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'clipsync', label: 'ClipSync', icon: <Link2 className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'tempmail', label: 'tempmail', icon: <Mail className="w-3.5 h-3.5 shrink-0" /> },
-  { id: 'guide', label: 'Guide', icon: <BookOpen className="w-3.5 h-3.5 shrink-0" /> },
+const NAV_TABS: {
+  id: TabId;
+  label: string;
+  icon: any;
+}[] = [
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'api', label: 'API Tester', icon: Globe },
+  { id: 'dev-tools', label: 'Dev Tools', icon: Code2 },
+  { id: 'network', label: 'Network', icon: Network },
+  { id: 'encoders', label: 'Encoders', icon: Binary },
+  { id: 'rate-limit', label: 'Rate Limit', icon: Gauge },
+  { id: 'webhook', label: 'Webhooks', icon: Webhook },
+  { id: 'clipsync', label: 'ClipSync', icon: Link2 },
+  { id: 'tempmail', label: 'TempMail', icon: Mail },
+  { id: 'guide', label: 'Guide', icon: BookOpen },
 ];
 
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
+  const [hoveredTab, setHoveredTab] = useState<TabId | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const navRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>(
+    {} as Record<TabId, HTMLButtonElement | null>,
+  );
+
+  const [indicator, setIndicator] = useState({
+    left: 0,
+    width: 0,
+  });
+
+  const currentTab = hoveredTab || activeTab;
+
+  useEffect(() => {
+    const node = tabRefs.current[currentTab];
+    const navNode = navRef.current;
+
+    if (node && navNode) {
+      const rect = node.getBoundingClientRect();
+      const navRect = navNode.getBoundingClientRect();
+
+      setIndicator({
+        left: rect.left - navRect.left,
+        width: rect.width,
+      });
+    }
+  }, [currentTab]);
+
   return (
-    <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center gap-3">
-        {/* ── Logo ── */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <Zap className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+    <>
+      {/* ================= DESKTOP NAV (UNCHANGED) ================= */}
+      <header className="sticky flex top-5 z-50 hidden lg:flex">
+        <div className="max-w-screen-2xl rounded-full border-2 border-neutral-800 px-10 py-2 bg-neutral-900 h-auto mx-auto flex gap-10">
+          {/* Logo */}
+          <div className=" flex h-[50px] items-center shrink-0">
+            <img
+              src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
+              alt="logo"
+              className="h-[100px] w-auto object-contain"
+            />
           </div>
-          <span className="font-semibold text-white text-sm tracking-tight hidden sm:block">
-            FairArena
-          </span>
+
+          {/* Nav Tabs */}
+          <div
+            ref={navRef}
+            className="relative flex items-center gap-3 flex-1 overflow-x-auto no-scrollbar"
+          >
+            {/* Sliding Line */}
+            <motion.div
+              className="absolute bottom-0 h-[2px] bg-[#D9FF00] rounded-full"
+              animate={{
+                left: indicator.left,
+                width: indicator.width,
+              }}
+              transition={{
+                type: 'spring',
+                stiffness: 160, // slower
+                damping: 35,
+                mass: 1.2,
+              }}
+            />
+
+            {NAV_TABS.map(({ id, label, icon: Icon }) => {
+              const isActive = activeTab === id;
+
+              return (
+                <motion.button
+                  key={id}
+                  ref={(el) => {
+                    tabRefs.current[id] = el;
+                  }}
+                  onMouseEnter={() => setHoveredTab(id)}
+                  onMouseLeave={() => setHoveredTab(null)}
+                  onClick={() => {
+                    if (id === 'tempmail') {
+                      window.open(
+                        'https://tempmail.fairarena.app',
+                        '_blank',
+                        'noopener,noreferrer',
+                      );
+                      return;
+                    }
+                    onTabChange(id);
+                  }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative flex items-center gap-2 px-3 py-2 text-xs rounded-md
+                  ${isActive ? 'text-[#D9FF00]' : 'text-neutral-400 hover:text-white'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
+      </header>
 
-        {/* ── Separator ── */}
-        <div className="h-5 w-px bg-slate-800 hidden sm:block shrink-0" />
+      {/* ================= MOBILE NAV ================= */}
+      <header className="sticky top-3 z-50 px-3 flex justify-center lg:hidden">
+        <div className="w-[80%] flex overflow-y-hidden h-[50px] items-center justify-between bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2">
+          {/* Logo */}
+          <img
+            src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
+            className="h-[80px]"
+          />
 
-        {/* ── Nav tabs ── */}
-        <nav
-          className="flex items-stretch h-14 overflow-x-auto no-scrollbar gap-0.5 flex-1"
-          role="tablist"
-          aria-label="Main navigation"
-        >
-          {NAV_TABS.map(({ id, label, icon }) => {
-            const visibilityClass =
-              id === 'terminal' || id === 'webhook' ? 'hidden sm:flex' : 'flex';
-            return (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={activeTab === id}
-                onClick={() => {
-                  if (id === 'tempmail') {
-                    window.open('https://tempmail.fairarena.app', '_blank', 'noopener,noreferrer');
-                    return;
-                  }
-                  onTabChange(id);
-                }}
-                className={[
-                  `${visibilityClass} relative items-center gap-1.5 px-3 h-full text-xs font-medium whitespace-nowrap transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-sm`,
-                  activeTab === id ? 'text-white' : 'text-slate-400 hover:text-slate-100',
-                ].join(' ')}
-              >
-                {icon}
-                <span className="hidden sm:inline">{label}</span>
-                {/* Active underline */}
-                {activeTab === id && (
-                  <span
-                    aria-hidden
-                    className="absolute bottom-0 inset-x-1 h-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* ── Status badge ── */}
-        <div className="flex items-center shrink-0">
-          <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/70 border border-slate-800 px-2.5 py-1.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-slow" />
-            Free · No login
-          </span>
+          {/* Menu Button */}
+          <button onClick={() => setIsOpen(true)}>
+            <Menu className="text-white" />
+          </button>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* ================= MOBILE DRAWER ================= */}
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              className="fixed inset-0 bg-black/50 z-40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+            />
+
+            {/* Drawer */}
+            <motion.div
+              className="fixed top-0 right-0 h-full w-[80%] max-w-[300px] bg-neutral-900 z-50 p-5 flex flex-col gap-4 border-l border-neutral-800"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{
+                type: 'spring',
+                stiffness: 160,
+                damping: 30,
+              }}
+            >
+              {/* Close */}
+              <div className="flex justify-end">
+                <button onClick={() => setIsOpen(false)}>
+                  <X />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              {NAV_TABS.map(({ id, label, icon: Icon }) => {
+                const isActive = activeTab === id;
+
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      if (id === 'tempmail') {
+                        window.open('https://tempmail.fairarena.app', '_blank');
+                        return;
+                      }
+                      onTabChange(id);
+                      setIsOpen(false);
+                    }}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-md text-sm
+                    ${isActive ? 'text-[#D9FF00] bg-neutral-800' : 'text-neutral-400'}`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {label}
+                  </button>
+                );
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

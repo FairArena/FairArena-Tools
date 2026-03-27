@@ -198,8 +198,8 @@ export const EmailSecurityChecker: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg">
-              <Mail className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shadow-lg shadow-brand-500/10">
+              <Mail className="w-5 h-5 text-brand-500" />
             </div>
             <div>
               <CardTitle>Email Security Checker</CardTitle>
@@ -246,9 +246,9 @@ export const EmailSecurityChecker: React.FC = () => {
                     </div>
                     <span className="text-2xl font-bold">{getSecurityScore()}%</span>
                   </div>
-                  <div className="w-full bg-slate-700/50 rounded-full h-2">
+                  <div className="w-full bg-neutral-800 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-2 rounded-full transition-all duration-500"
+                      className="bg-brand-500 shadow-[0_0_8px_rgba(217,255,0,0.4)] h-2 rounded-full transition-all duration-500"
                       style={{ width: `${getSecurityScore()}%` }}
                     />
                   </div>
@@ -264,9 +264,9 @@ export const EmailSecurityChecker: React.FC = () => {
                   <CardContent className="pt-6 space-y-4">
                     <div className="flex items-center gap-3">
                       {result.valid ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <CheckCircle2 className="w-5 h-5 text-brand-500 shrink-0" />
                       ) : (
-                        <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                        <XCircle className="w-5 h-5 text-neutral-500 shrink-0" />
                       )}
                       <h4 className="font-semibold">{result.type} Record</h4>
                       <Badge
@@ -277,9 +277,11 @@ export const EmailSecurityChecker: React.FC = () => {
                       </Badge>
                     </div>
 
-                    <div className="bg-slate-950/50 border border-slate-800/50 p-3 rounded-lg">
+                    <div className="bg-neutral-900 border border-neutral-800 p-3 rounded-lg">
                       <div className="text-xs text-muted-foreground mb-1">Raw Record</div>
-                      <div className="text-sm text-white font-mono break-all">{result.record}</div>
+                      <div className="text-sm text-neutral-300 font-mono break-all">
+                        {result.record}
+                      </div>
                     </div>
 
                     {(result.details.policy ||
@@ -354,13 +356,13 @@ export const EmailSecurityChecker: React.FC = () => {
                   <h4 className="font-semibold mb-3">Recommendations</h4>
                   <div className="space-y-2 text-sm">
                     {!results.some((r) => r.type === 'SPF' && r.valid) && (
-                      <div className="flex items-start gap-2 text-red-400">
+                      <div className="flex items-start gap-2 text-neutral-500">
                         <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <span>Add an SPF record to prevent email spoofing</span>
                       </div>
                     )}
                     {!results.some((r) => r.type === 'DMARC' && r.valid) && (
-                      <div className="flex items-start gap-2 text-yellow-400">
+                      <div className="flex items-start gap-2 text-brand-400">
                         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <span>
                           Add a DMARC record for better email authentication and reporting
@@ -368,7 +370,7 @@ export const EmailSecurityChecker: React.FC = () => {
                       </div>
                     )}
                     {!results.some((r) => r.type === 'DKIM' && r.valid) && (
-                      <div className="flex items-start gap-2 text-yellow-400">
+                      <div className="flex items-start gap-2 text-brand-400">
                         <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                         <span>Configure DKIM signing for your email domain</span>
                       </div>
@@ -376,7 +378,7 @@ export const EmailSecurityChecker: React.FC = () => {
                     {results.some((r) => r.type === 'SPF' && r.valid) &&
                       results.some((r) => r.type === 'DMARC' && r.valid) &&
                       results.some((r) => r.type === 'DKIM' && r.valid) && (
-                        <div className="flex items-start gap-2 text-emerald-400">
+                        <div className="flex items-start gap-2 text-brand-500 font-bold">
                           <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
                           <span>Excellent! Your domain has comprehensive email security</span>
                         </div>
