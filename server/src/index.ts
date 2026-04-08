@@ -631,7 +631,9 @@ const curlLimiter = rateLimit({
 const requestSchema = z.object({
   url: z.string().url().optional(),
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']).default('GET'),
-  headers: z.record(z.string()).default({}),
+  // Accept a simple string->string map for headers. Provide explicit
+  // key/value string schemas to satisfy the TypeScript/Zod overloads.
+  headers: z.record(z.string(), z.string()).default({}),
   body: z.string().optional(),
   curl: z.string().optional(),
   followRedirects: z.boolean().default(true),
@@ -655,7 +657,8 @@ app.post('/api/request/run', curlLimiter, async (req, res) => {
     } else if (p.url) {
       url = p.url;
       method = p.method;
-      headers = p.headers;
+      // Zod may infer a loose record type; cast to the expected string->string map.
+      headers = p.headers as Record<string, string>;
       body = p.body;
       followRedirects = p.followRedirects;
     } else {
