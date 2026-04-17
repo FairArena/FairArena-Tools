@@ -23,9 +23,9 @@ export const Spinner: React.FC<{ className?: string }> = ({ className = 'w-8 h-8
 export const PageLoader: React.FC<{ message?: string }> = ({ message }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-3 p-6 bg-slate-900/80 rounded-lg border border-slate-700/60">
+      <div className="flex flex-col items-center gap-3 p-6 bg-neutral-900/80 rounded-lg border border-neutral-700/60">
         <Spinner className="w-12 h-12" />
-        <div className="text-sm text-slate-300">{message ?? 'Loading…'}</div>
+        <div className="text-sm text-neutral-300">{message ?? 'Loading…'}</div>
       </div>
     </div>
   );

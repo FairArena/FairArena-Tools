@@ -145,8 +145,8 @@ export const EncoderDecoder: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
-              <Binary className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shadow-lg shadow-brand-500/10">
+              <Binary className="w-5 h-5 text-brand-500" />
             </div>
             <div>
               <CardTitle>Encoder / Decoder</CardTitle>
@@ -158,7 +158,7 @@ export const EncoderDecoder: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Controls */}
-          <div className="flex flex-wrap items-end gap-4 p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
+          <div className="flex flex-wrap items-end gap-4 p-4 bg-neutral-800/40 rounded-lg border border-neutral-700/50">
             <div className="space-y-2">
               <Label>Encoding Type</Label>
               <Select

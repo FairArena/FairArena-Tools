@@ -125,11 +125,11 @@ export const PasswordGenerator: React.FC = () => {
   };
 
   const getStrengthLabel = (score: number): { label: string; color: string } => {
-    if (score < 2) return { label: 'Very Weak', color: 'text-red-400' };
-    if (score < 3) return { label: 'Weak', color: 'text-orange-400' };
-    if (score < 4) return { label: 'Fair', color: 'text-yellow-400' };
-    if (score < 5) return { label: 'Good', color: 'text-green-400' };
-    return { label: 'Strong', color: 'text-emerald-400' };
+    if (score < 2) return { label: 'Very Weak', color: 'text-neutral-500' };
+    if (score < 3) return { label: 'Weak', color: 'text-neutral-400' };
+    if (score < 4) return { label: 'Fair', color: 'text-neutral-300' };
+    if (score < 5) return { label: 'Good', color: 'text-brand-400' };
+    return { label: 'Strong', color: 'text-brand-500' };
   };
 
   const strengthInfo = getStrengthLabel(strength);
@@ -139,8 +139,8 @@ export const PasswordGenerator: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg">
-              <Lock className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+              <Lock className="w-5 h-5 text-neutral-900" />
             </div>
             <div>
               <CardTitle>Password Generator</CardTitle>
@@ -202,7 +202,7 @@ export const PasswordGenerator: React.FC = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Generated Password</Label>
-                <div className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-lg font-mono text-base text-white break-all min-h-[60px] flex items-center">
+                <div className="bg-neutral-900/50 border border-neutral-700/50 p-4 rounded-lg font-mono text-base text-white break-all min-h-[60px] flex items-center">
                   {password || (
                     <span className="text-muted-foreground text-sm">
                       Click Generate to create a password
@@ -223,18 +223,14 @@ export const PasswordGenerator: React.FC = () => {
                     {strengthInfo.label}
                   </Badge>
                 </div>
-                <div className="w-full bg-slate-700/50 rounded-full h-2">
+                <div className="w-full bg-neutral-800/50 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-300 ${
-                      strength < 2
-                        ? 'bg-red-500'
-                        : strength < 3
-                          ? 'bg-orange-500'
-                          : strength < 4
-                            ? 'bg-yellow-500'
-                            : strength < 5
-                              ? 'bg-green-500'
-                              : 'bg-emerald-500'
+                      strength < 4
+                        ? 'bg-neutral-600'
+                        : strength < 5
+                          ? 'bg-brand-400'
+                          : 'bg-brand-500'
                     }`}
                     style={{ width: `${(strength / 5) * 100}%` }}
                   />
@@ -260,7 +256,7 @@ export const PasswordGenerator: React.FC = () => {
           {/* Bulk Generation */}
           <Separator />
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm text-slate-300">Bulk Generation</h4>
+            <h4 className="font-semibold text-sm text-neutral-300">Bulk Generation</h4>
             <div className="flex gap-2">
               {[5, 10, 25].map((n) => (
                 <Button key={n} variant="outline" size="sm" onClick={() => generateMultiple(n)}>
@@ -288,7 +284,7 @@ export const PasswordGenerator: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="bg-slate-900/40 rounded-lg max-h-48 overflow-auto divide-y divide-slate-700/40">
+                <div className="bg-neutral-900/40 rounded-lg max-h-48 overflow-auto divide-y divide-neutral-700/40">
                   {generatedPasswords.map((pwd, i) => (
                     <div key={i} className="flex items-center justify-between px-3 py-2 group">
                       <span className="font-mono text-sm text-white break-all flex-1">{pwd}</span>

@@ -27,18 +27,18 @@ export default {
         'destructive-foreground': 'hsl(var(--destructive-foreground) / <alpha-value>)',
 
         // project palettes
-        surface: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          800: '#0f172a',
-          850: '#0c1526',
-          900: '#080e1e',
-          950: '#050912',
+        neutral: {
+          50: '#fafafa',
+          100: '#f5f5f5',
+          800: '#262626',
+          850: '#1f1f1f',
+          900: '#171717',
+          950: '#0a0a0a',
         },
         brand: {
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
+          400: '#e2ff33',
+          500: '#D9FF00',
+          600: '#b2d100',
         },
       },
       animation: {

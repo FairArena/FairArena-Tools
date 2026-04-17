@@ -141,8 +141,8 @@ export const NumberBaseConverter: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg">
-              <Calculator className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+              <Calculator className="w-5 h-5 text-brand-500" />
             </div>
             <div>
               <CardTitle>Number Base Converter</CardTitle>
@@ -154,7 +154,7 @@ export const NumberBaseConverter: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Input Controls */}
-          <div className="space-y-4 p-4 bg-slate-800/40 rounded-lg border border-slate-700/50">
+          <div className="space-y-4 p-4 bg-neutral-800/40 rounded-lg border border-neutral-700/50">
             <div className="flex flex-wrap gap-4 items-end">
               <div className="space-y-2 w-52">
                 <Label>Input Base</Label>
@@ -202,7 +202,7 @@ export const NumberBaseConverter: React.FC = () => {
 
           {/* Results */}
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm text-slate-300">Converted Values</h4>
+            <h4 className="font-semibold text-sm text-neutral-300">Converted Values</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Object.entries(baseInfo).map(([key, info]) => {
                 const baseKey = key as NumberBase;
@@ -226,7 +226,7 @@ export const NumberBaseConverter: React.FC = () => {
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
                       </div>
-                      <div className="font-mono text-sm break-all text-slate-200">
+                      <div className="font-mono text-sm break-all text-neutral-200">
                         {result || '—'}
                       </div>
                       {result && baseKey === 'binary' && (
