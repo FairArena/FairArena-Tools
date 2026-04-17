@@ -11,12 +11,12 @@ importers:
       '@arcjet/node':
         specifier: ^1.3.0
         version: 1.3.0
-      '@types/hpp':
-        specifier: ^0.2.7
-        version: 0.2.7
       '@upstash/redis':
         specifier: ^1.37.0
         version: 1.37.0
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
       cors:
         specifier: ^2.8.6
         version: 2.8.6
@@ -48,12 +48,18 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
       '@types/cors':
         specifier: ^2.8.19
         version: 2.8.19
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
+      '@types/hpp':
+        specifier: ^0.2.7
+        version: 0.2.7
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
@@ -309,6 +315,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@types/bcryptjs@2.4.6':
+    resolution: {integrity: sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ==}
+
   '@types/body-parser@1.19.6':
     resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
 
@@ -362,6 +371,9 @@ packages:
   arcjet@1.3.0:
     resolution: {integrity: sha512-15V0B83ta/Kv+1/KtuqgkdTHYXsv43U5qq+rIWgvzOxUWXpRd8fj41Vr4jxguSaL8yg7fvSFvdzPn3TlvwQAyw==}
     engines: {node: '>=20'}
+
+  bcryptjs@2.4.3:
+    resolution: {integrity: sha512-V/Hy/X9Vt7f3BbPJEi8BdVFMByHi+jNXrYkW3huaybV/kQ0KJg0Y6PkEMbn+zeT+i+SiKZ/HMqJGIIt4LZDqNQ==}
 
   body-parser@2.2.2:
     resolution: {integrity: sha512-oP5VkATKlNwcgvxi0vM0p/D3n2C3EReYVX+DNYs5TjZFn/oQt2j+4sVJtSMr18pdRr8wjTcBl6LoV+FUwzPmNA==}
@@ -876,6 +888,8 @@ snapshots:
   '@esbuild/win32-x64@0.27.4':
     optional: true
 
+  '@types/bcryptjs@2.4.6': {}
+
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
@@ -951,6 +965,8 @@ snapshots:
       '@arcjet/protocol': 1.3.0
       '@arcjet/runtime': 1.3.0
       '@arcjet/stable-hash': 1.3.0
+
+  bcryptjs@2.4.3: {}
 
   body-parser@2.2.2:
     dependencies:

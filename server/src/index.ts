@@ -9,6 +9,7 @@ import { z } from 'zod';
 import dns from 'node:dns';
 import os from 'node:os';
 import hpp from 'hpp';
+import bcryptjs from 'bcryptjs';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -1286,6 +1287,514 @@ app.post('/api/rate-limit/test', rateLimitTestLimiter, async (req, res: ExpressR
   } catch (error) {
     console.error('Rate limit test error:', error);
     res.status(500).json({ error: 'Failed to run rate limit test', details: String(error) });
+  }
+});
+
+// ---- URL Shortener API (farena.me integration) --------------------------------
+
+// Validation schema for URL shortener
+const CreateShortUrlSchema = z.object({
+  originalUrl: z.string().url('Invalid URL format'),
+  customCode: z.string().max(20).optional(),
+  expiryHours: z.number().min(1).max(48, 'Max 48 hours allowed'),
+  maxUsages: z.number().positive().optional(),
+  notes: z.string().max(200).optional(),
+  tags: z.array(z.string().trim().min(3, 'Each tag must be at least 3 characters').max(40)).max(12).optional(),
+  secret: z.string().trim().min(1).max(128).optional(),
+  snappiApiKey: z.string().optional(), // For future: allow client to provide farena.me API key
+});
+
+const UrlShortenerAnalyticsQuerySchema = z.object({
+  take: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+const DEFAULT_SNAPP_SELECT = {
+  id: true,
+  shortcode: true,
+  originalUrl: true,
+  createdAt: true,
+  expiresAt: true,
+  disabled: true,
+  userId: true,
+  groupId: true,
+  maxUsages: true,
+  hit: true,
+  used: true,
+  notes: true,
+  tag: {
+    select: {
+      name: true,
+      slug: true,
+      notes: true,
+    },
+  },
+} as const;
+
+const DEFAULT_USAGE_SELECT = {
+  id: true,
+  timestamp: true,
+  snappId: true,
+  ownerId: true,
+  language: true,
+  userAgent: true,
+  referrer: true,
+  device: true,
+  country: true,
+  region: true,
+  city: true,
+  os: true,
+  browser: true,
+  cpu: true,
+} as const;
+
+function slugifyTag(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+async function hashShortenerSecret(secret: string): Promise<string> {
+  const normalized = secret.trim();
+  // If already a bcrypt hash, return as-is
+  if (/^\$2[aby]\$\d{2}\$.{53}$/i.test(normalized)) {
+    return normalized;
+  }
+  // Hash with bcrypt (rounds: 12 provides good security/performance balance)
+  const hashed = await bcryptjs.hash(normalized, 12);
+  return hashed;
+}
+
+function buildTagConnectOrCreate(tags?: string[]): { connectOrCreate: Array<{ where: { slug: string }, create: { name: string, slug: string, notes: string | null } }> } | undefined {
+  if (!tags || tags.length === 0) return undefined;
+
+  const unique = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+  if (unique.length === 0) return undefined;
+
+  return {
+    connectOrCreate: unique.map((tag) => {
+      const slug = slugifyTag(tag);
+      return {
+        where: { slug },
+        create: {
+          name: tag,
+          slug,
+          notes: null,
+        },
+      };
+    }),
+  };
+}
+
+function encodeQueryArg(q: unknown): string {
+  return encodeURIComponent(JSON.stringify(q));
+}
+
+function normalizeTagStrings(tagData: unknown): string[] {
+  if (!Array.isArray(tagData)) return [];
+
+  return tagData
+    .map((tag) => {
+      if (typeof tag === 'string') return tag;
+      if (tag && typeof tag === 'object') {
+        const obj = tag as Record<string, unknown>;
+        return typeof obj.slug === 'string'
+          ? obj.slug
+          : typeof obj.name === 'string'
+            ? obj.name
+            : null;
+      }
+      return null;
+    })
+    .filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
+function summarizeUsageDimension(rows: Array<Record<string, unknown>>, field: string): Array<{ key: string, count: number }> {
+  const buckets = new Map<string, number>();
+
+  for (const row of rows) {
+    const raw = row[field];
+    const key = typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'Unknown';
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+
+  return [...buckets.entries()]
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// Helper function to generate random shortcode
+function generateRandomShortcode(length: number): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Rate limiter for URL shortener
+const urlShortenerLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10, // 10 URLs per minute per IP
+  message: 'Too many URL shortening requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.BYPASS_LIMITS === 'true',
+});
+
+app.post('/api/url-shortener/create', urlShortenerLimiter, async (req, res) => {
+  try {
+    const validation = CreateShortUrlSchema.safeParse(req.body);
+    
+    if (!validation.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: validation.error.issues,
+      });
+    }
+
+    const {
+      originalUrl,
+      customCode,
+      expiryHours,
+      maxUsages,
+      notes,
+      tags,
+      secret,
+      snappiApiKey,
+    } = validation.data;
+    const farenaMeApiKey = snappiApiKey || process.env.SNAPP_LI_API_KEY || process.env.FARENA_ME_API_KEY;
+
+    // Check if API key is configured
+    if (!farenaMeApiKey) {
+      console.error('[url-shortener] No API key found in environment');
+      return res.status(503).json({
+        error: 'URL shortener service is not configured',
+        message: 'farena.me API key is not set on the server',
+      });
+    }
+    // Generate shortcode if not provided
+    const shortcode = customCode || generateRandomShortcode(6);
+
+    // Calculate expiry timestamp
+    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000).toISOString();
+    const userId = process.env.FARENA_ME_USER_ID;
+    const tag = buildTagConnectOrCreate(tags);
+    const hashedSecret = secret ? await hashShortenerSecret(secret) : undefined;
+
+    // Prepare farena.me API payload using docs-aligned SnappCreateArgs shape
+    const payload = {
+      data: {
+        shortcode,
+        originalUrl,
+        userId,
+        ...(maxUsages !== undefined && { maxUsages }),
+        ...(notes && { notes }),
+        ...(hashedSecret && { secret: hashedSecret }),
+        ...(tag && { tag }),
+        expiresAt,
+      },
+      select: DEFAULT_SNAPP_SELECT,
+    };
+
+    // Call actual farena.me API
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${farenaMeApiKey}`,
+    };
+
+    let farenaMeResponse = await fetch('https://farena.me/api/snapp/create', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (farenaMeResponse.status === 403) {
+      farenaMeResponse = await fetch('https://farena.me/api/create', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
+      });
+    }
+
+    // Handle farena.me API errors
+    if (!farenaMeResponse.ok) {
+      const errorBody = await farenaMeResponse.text();
+      console.error('[url-shortener] farena.me API error:', farenaMeResponse.status, errorBody);
+      
+      if (farenaMeResponse.status === 401 || farenaMeResponse.status === 403) {
+        return res.status(503).json({
+          error: 'Authentication failed',
+          message: 'Invalid or expired farena.me API key. Please contact administrator.',
+        });
+      }
+      
+      if (farenaMeResponse.status === 409) {
+        return res.status(409).json({
+          error: 'Shortcode already exists',
+          message: `The shortcode "${shortcode}" is already taken. Please choose a different one.`,
+        });
+      }
+
+      if (farenaMeResponse.status === 422) {
+        let details: unknown;
+        try {
+          details = JSON.parse(errorBody);
+        } catch {
+          details = errorBody;
+        }
+        return res.status(422).json({
+          error: 'Invalid request',
+          message: 'Invalid parameters sent to URL shortener service',
+          details,
+        });
+      }
+
+      return res.status(farenaMeResponse.status).json({
+        error: 'URL shortener service error',
+        message: `farena.me API returned status ${farenaMeResponse.status}`,
+      });
+    }
+
+    // Parse successful response
+    const farenaMeData = await farenaMeResponse.json();
+    const createdUrl = farenaMeData.data || farenaMeData;
+
+    // Validate response has required fields - map to expected field names
+    if (!createdUrl) {
+      console.error('[url-shortener] Invalid response from farena.me:', farenaMeData);
+      return res.status(502).json({
+        error: 'Invalid response from service',
+        message: 'URL shortener returned invalid data',
+      });
+    }
+
+    // Extract fields - handle various possible field names from API
+    const responseId = createdUrl.id || createdUrl._id;
+    const responseCode = createdUrl.code || createdUrl.shortcode;
+    const responseUrl = createdUrl.url || createdUrl.originalUrl;
+    const responseCreated = createdUrl.createdAt || createdUrl.created_at || new Date().toISOString();
+
+    if (!responseCode) {
+      console.error('[url-shortener] Invalid response from farena.me - missing code:', farenaMeData);
+      return res.status(502).json({
+        error: 'Invalid response from service',
+        message: 'URL shortener returned invalid data',
+      });
+    }
+
+    const normalizedTags = normalizeTagStrings(createdUrl.tag ?? createdUrl.tags ?? tags ?? []);
+
+    // Success response
+    res.status(201).json({
+      success: true,
+      data: {
+        id: responseId,
+        shortcode: responseCode,
+        originalUrl: responseUrl || originalUrl,
+        createdAt: responseCreated,
+        expiresAt: createdUrl.expiration || expiresAt,
+        maxUsages: createdUrl.maxClicks || createdUrl.maxUsages || maxUsages || null,
+        hit: createdUrl.hit ?? 0,
+        used: createdUrl.used ?? 0,
+        secret: null,
+        hasSecret: Boolean(createdUrl.secret || hashedSecret),
+        notes: createdUrl.description || createdUrl.notes || notes || null,
+        tags: normalizedTags,
+        tag: createdUrl.tag || normalizedTags.map((slug) => ({ name: slug, slug })),
+        disabled: createdUrl.disabled || false,
+        shortUrl: `https://farena.me/${responseCode}`,
+      },
+      message: 'Short URL created successfully',
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        console.error('[url-shortener] Request timeout');
+        return res.status(504).json({
+          error: 'Service timeout',
+          message: 'URL shortener service took too long to respond',
+        });
+      }
+      console.error('[url-shortener] Error:', error.message);
+      return res.status(500).json({
+        error: 'Failed to create short URL',
+        message: error.message,
+      });
+    }
+    console.error('[url-shortener] Unknown error:', error);
+    res.status(500).json({
+      error: 'Failed to create short URL',
+      message: 'Unknown error occurred',
+    });
+  }
+});
+
+app.get('/api/url-shortener/:id/analytics', urlShortenerLimiter, async (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      message: 'URL id is required',
+    });
+  }
+
+  const parsedQuery = UrlShortenerAnalyticsQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: parsedQuery.error.issues,
+    });
+  }
+
+  const apiKey = process.env.SNAPP_LI_API_KEY || process.env.FARENA_ME_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({
+      error: 'URL shortener service is not configured',
+      message: 'farena.me API key is not set on the server',
+    });
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  try {
+    const snappQuery = encodeQueryArg({
+      where: { id },
+      select: DEFAULT_SNAPP_SELECT,
+    });
+
+    const snappResponse = await fetch(`https://farena.me/api/snapp/findUnique?q=${snappQuery}`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!snappResponse.ok) {
+      const errorBody = await snappResponse.text();
+      return res.status(snappResponse.status).json({
+        error: 'Failed to fetch short URL metrics',
+        message: `snapp.findUnique failed with status ${snappResponse.status}`,
+        details: errorBody,
+      });
+    }
+
+    const snappPayload = await snappResponse.json();
+    const snapp = snappPayload?.data;
+
+    if (!snapp) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: `No short URL found with id "${id}"`,
+      });
+    }
+
+    const usageFindManyQuery = encodeQueryArg({
+      where: { snappId: id },
+      orderBy: { timestamp: 'desc' },
+      take: parsedQuery.data.take,
+      select: DEFAULT_USAGE_SELECT,
+    });
+
+    const usageCountQuery = encodeQueryArg({
+      where: { snappId: id },
+    });
+
+    const [usageListResult, usageCountResult] = await Promise.allSettled([
+      fetch(`https://farena.me/api/usage/findMany?q=${usageFindManyQuery}`, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`https://farena.me/api/usage/count?q=${usageCountQuery}`, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
+
+    let usageRows: Array<Record<string, unknown>> = [];
+    let usageTotal = 0;
+    let usageWarning: string | null = null;
+
+    if (usageListResult.status === 'fulfilled' && usageListResult.value.ok) {
+      const usagePayload = await usageListResult.value.json();
+      usageRows = Array.isArray(usagePayload?.data) ? usagePayload.data : [];
+    } else {
+      usageWarning = 'Usage detail feed is unavailable for this API key.';
+    }
+
+    if (usageCountResult.status === 'fulfilled' && usageCountResult.value.ok) {
+      const usageCountPayload = await usageCountResult.value.json();
+      usageTotal = typeof usageCountPayload?.data === 'number' ? usageCountPayload.data : usageRows.length;
+    } else {
+      usageTotal = usageRows.length;
+      usageWarning = usageWarning ?? 'Usage count feed is unavailable for this API key.';
+    }
+
+    const countryBreakdown = summarizeUsageDimension(usageRows, 'country').slice(0, 10);
+    const browserBreakdown = summarizeUsageDimension(usageRows, 'browser').slice(0, 10);
+    const osBreakdown = summarizeUsageDimension(usageRows, 'os').slice(0, 10);
+    const deviceBreakdown = summarizeUsageDimension(usageRows, 'device').slice(0, 10);
+    const referrerBreakdown = summarizeUsageDimension(usageRows, 'referrer').slice(0, 10);
+
+    const byDayMap = new Map<string, number>();
+    for (const row of usageRows) {
+      const timestamp = row.timestamp;
+      if (typeof timestamp !== 'string') continue;
+      const dayKey = timestamp.slice(0, 10);
+      byDayMap.set(dayKey, (byDayMap.get(dayKey) ?? 0) + 1);
+    }
+
+    const timeline = [...byDayMap.entries()]
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => a.day.localeCompare(b.day));
+
+    const maxUsages = typeof snapp.maxUsages === 'number' ? snapp.maxUsages : null;
+    const used = typeof snapp.used === 'number' ? snapp.used : 0;
+    const remainingUsages = maxUsages && maxUsages > 0 ? Math.max(0, maxUsages - used) : null;
+
+    return res.json({
+      success: true,
+      data: {
+        snapp,
+        metrics: {
+          totalHits: typeof snapp.hit === 'number' ? snapp.hit : 0,
+          totalUsed: used,
+          usageCount: usageTotal,
+          maxUsages,
+          remainingUsages,
+          countryBreakdown,
+          browserBreakdown,
+          osBreakdown,
+          deviceBreakdown,
+          referrerBreakdown,
+          timeline,
+          recentUsage: usageRows,
+          warning: usageWarning,
+        },
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return res.status(504).json({
+        error: 'Service timeout',
+        message: 'Metrics service took too long to respond',
+      });
+    }
+
+    console.error('[url-shortener] analytics error:', error);
+    return res.status(500).json({
+      error: 'Failed to fetch analytics',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    });
   }
 });
 

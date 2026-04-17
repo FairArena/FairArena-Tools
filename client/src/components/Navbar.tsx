@@ -25,7 +25,8 @@ type TabId =
   | 'tempmail'
   | 'guide'
   | 'clipsync'
-  | 'rate-limit';
+  | 'rate-limit'
+  | 'url-shortener';
 
 interface NavbarProps {
   activeTab: TabId;
@@ -44,6 +45,7 @@ const NAV_TABS: {
   { id: 'encoders', label: 'Encoders', icon: Binary },
   { id: 'rate-limit', label: 'Rate Limit', icon: Gauge },
   { id: 'webhook', label: 'Webhooks', icon: Webhook },
+  { id: 'url-shortener', label: 'URL Shortener', icon: Link2 },
   { id: 'clipsync', label: 'ClipSync', icon: Link2 },
   { id: 'tempmail', label: 'TempMail', icon: Mail },
   { id: 'guide', label: 'Guide', icon: BookOpen },

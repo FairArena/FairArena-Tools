@@ -5,6 +5,7 @@ import { ApiTester } from './components/ApiTester.js';
 import { WebhookDumper } from './components/WebhookDumper.js';
 import { Guide } from './components/Guide.js';
 import { ClipSync } from './components/ClipSync.js';
+import { UrlShortener } from './components/UrlShortener.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { NotFound } from './components/NotFound.js';
 import { API_BASE } from './hooks/useTerminalSession.js';
@@ -49,7 +50,8 @@ type Tab =
   | 'guide'
   | 'clipsync'
   | 'tempmail'
-  | 'rate-limit';
+  | 'rate-limit'
+  | 'url-shortener';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-24 text-neutral-500">
@@ -292,6 +294,8 @@ export default function App() {
                 <Guide />
               ) : tab === 'clipsync' ? (
                 <ClipSync />
+              ) : tab === 'url-shortener' ? (
+                <UrlShortener />
               ) : tab === 'rate-limit' ? (
                 <RateLimitTester />
               ) : (
