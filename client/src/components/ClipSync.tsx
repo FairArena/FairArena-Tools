@@ -35,6 +35,8 @@ import {
   Square,
   Camera,
   MapPin,
+  Key,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -99,6 +101,15 @@ async function exportKey(key: CryptoKey): Promise<string> {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
+}
+
+async function importKey(keyB64: string): Promise<CryptoKey> {
+  // Reverse the urlsafe base64 encoding
+  let b64 = keyB64.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding
+  b64 += '=='.slice(0, (4 - (b64.length % 4)) % 4);
+  const raw = new Uint8Array(atob(b64).split('').map(c => c.charCodeAt(0)));
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
 }
 
 // ─── ECDH helpers for 6-char code key exchange ───────────────────────────────
@@ -336,16 +347,73 @@ function parseJoinInput(
   return null;
 }
 
-const FILE_LIMIT = 50 * 1024 * 1024; // 50 MB for Phase 3
-const CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB chunks for large file upload
+const FILE_LIMIT = 50 * 1024 * 1024; // 50 MB max file size
+const CHUNK_SIZE = 2.2 * 1024 * 1024; // 2.2 MB raw chunks → ~3MB base64, stays under 7MB server limit with overhead
+
+// Persist device ID to localStorage for tab switching without losing admin status
+function getOrCreateDeviceId(): string {
+  const key = 'clipsync_device_id';
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = globalThis.crypto.randomUUID?.() ?? `device_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+// Persist active room session to sessionStorage for tab reconnection
+interface StoredRoomSession {
+  roomId: string;
+  keyB64: string;
+}
+
+function saveRoomSession(roomId: string, keyB64: string, items?: ClipItem[]): void {
+  try {
+    sessionStorage.setItem('clipsync_session', JSON.stringify({ roomId, keyB64, items: items || [] }));
+  } catch {
+    // Storage may be full or unavailable
+  }
+}
+
+function getStoredRoomSession(): (StoredRoomSession & { items?: ClipItem[] }) | null {
+  try {
+    const data = sessionStorage.getItem('clipsync_session');
+    if (data) return JSON.parse(data) as StoredRoomSession & { items?: ClipItem[] };
+  } catch {
+    // Parse error or storage unavailable
+  }
+  return null;
+}
+
+function saveRoomItems(items: ClipItem[]): void {
+  try {
+    const session = getStoredRoomSession();
+    if (session) {
+      session.items = items;
+      sessionStorage.setItem('clipsync_session', JSON.stringify(session));
+    }
+  } catch {
+    // Storage may be full
+  }
+}
+
+function clearRoomSession(): void {
+  try {
+    sessionStorage.removeItem('clipsync_session');
+  } catch {
+    // Ignore
+  }
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ClipSync() {
+  // Initialize device ID from localStorage on first render
+  const [persistedDeviceId] = useState(() => getOrCreateDeviceId());
   const [phase, setPhase] = useState<Phase>('idle');
   const [roomId, setRoomId] = useState('');
   const [keyB64, setKeyB64] = useState('');
-  const [myDeviceId, setMyDeviceId] = useState('');
+  const [myDeviceId, setMyDeviceId] = useState(persistedDeviceId);
   const [ownerDeviceId, setOwnerDeviceId] = useState('');
   const [peers, setPeers] = useState<Peer[]>([]);
   const [joinRequests, setJoinRequests] = useState<Array<{ deviceId: string; deviceName: string; ecdhPub?: string }>>([]);
@@ -373,7 +441,7 @@ export function ClipSync() {
   const wsRef = useRef<WebSocket | null>(null);
   const cryptoKeyRef = useRef<CryptoKey | null>(null);
   const ecdhPairRef = useRef<CryptoKeyPair | null>(null);
-  const myDeviceIdRef = useRef('');
+  const myDeviceIdRef = useRef(persistedDeviceId);
   const feedRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -432,7 +500,38 @@ export function ClipSync() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── WebSocket connection ────────────────────────────────────────────────────
+  // Auto-restore from stored session on mount (for tab switching)
+  useEffect(() => {
+    const restoreSession = async () => {
+      const stored = getStoredRoomSession();
+      if (stored && phase === 'idle') {
+        // Restore session from previous tab
+        let keyFromStorage: CryptoKey | null = null;
+        if (stored.keyB64) {
+          try {
+            keyFromStorage = await importKey(stored.keyB64);
+          } catch {
+            // Key import failed, will need re-approval
+          }
+        }
+        // Restore items/messages from previous tab session
+        if (stored.items && stored.items.length > 0) {
+          setItems(stored.items);
+        }
+        // Reconnect with restored room and key
+        connectToRoom(stored.roomId, stored.keyB64, keyFromStorage);
+      }
+    };
+    restoreSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist items to sessionStorage whenever they change (for tab switching)
+  useEffect(() => {
+    if (phase === 'connected' && items.length > 0) {
+      saveRoomItems(items);
+    }
+  }, [items, phase]);
 
   // kb64 / key may be null when joining with just the 6-char room code.
   // In that case, ECDH key exchange is initiated automatically after joining.
@@ -463,7 +562,8 @@ export function ClipSync() {
           /* ignore */
         }
       }
-      ws.send(JSON.stringify({ type: 'join', roomId: normalizedRid, deviceName: getDeviceName(), hasKey: false, ecdhPub }));
+      // Send join with persisted device ID to maintain ownership across reconnects
+      ws.send(JSON.stringify({ type: 'join', roomId: normalizedRid, deviceName: getDeviceName(), deviceId: persistedDeviceId, hasKey: false, ecdhPub }));
     };
 
     ws.onmessage = async (evt) => {
@@ -487,6 +587,7 @@ export function ClipSync() {
         if (key) {
           // Already have the AES key (joined via invite code / URL)
           setPhase('connected');
+          saveRoomSession(roomCode, kb64 ?? '', []);
           history.replaceState(null, '', `#clipsync/${roomCode}`);
         } else {
           // No key — initiate ECDH key request
@@ -596,6 +697,7 @@ export function ClipSync() {
             keyB64Ref.current = kb64New;
             setKeyB64(kb64New);
             // KEEP ecdhPairRef for future key rotations — don't set to null
+            saveRoomSession(roomIdRef.current, kb64New, items);
             setPhase('connected');
             history.replaceState(null, '', `#clipsync/${roomIdRef.current}`);
           } catch {
@@ -616,6 +718,7 @@ export function ClipSync() {
             const kb64New = await exportKey(newKey);
             keyB64Ref.current = kb64New;
             setKeyB64(kb64New);
+            saveRoomSession(roomIdRef.current, kb64New, items);
             toast.show('Encryption key rotated by owner');
           } catch (err) {
             console.warn('Key rotation unwrap failed:', err);
@@ -797,10 +900,10 @@ export function ClipSync() {
     wsRef.current = null;
     cryptoKeyRef.current = null;
     ecdhPairRef.current = null;
+    clearRoomSession();
     setPhase('idle');
     setRoomId('');
     setKeyB64('');
-    setMyDeviceId('');
     setPeers([]);
     setItems([]);
     setShowQR(false);
@@ -859,86 +962,65 @@ export function ClipSync() {
       const expiresAt = expiresIn > 0 ? Date.now() + expiresIn * 1000 : undefined;
       const sensitivity: ClipPayload['sensitivity'] = passwordMode ? 'password' : 'normal';
       
-        // For files > CHUNK_SIZE (1MB), use chunked upload
-        if (file.size > CHUNK_SIZE) {
-        const fileId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        
-        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-          const start = chunkIndex * CHUNK_SIZE;
-          const end = Math.min((chunkIndex + 1) * CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-          const chunkBase64 = await fileToBase64(chunk);
-          
-          const payload: ClipPayload = {
-            type: itemType,
-            content: chunkBase64,
-            filename: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            viewOnce: viewOnceMode,
-            expiresAt,
-            sensitivity,
-            isChunk: true,
-            chunkIndex,
-            totalChunks,
-            fileId,
-          };
-          
-          const encrypted = await encryptPayload(cryptoKeyRef.current, payload);
-          wsRef.current?.send(JSON.stringify({ type: 'relay', payload: encrypted }));
-          
-          // Update progress
-          const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-          setUploadProgress(prev => ({ ...prev, [fileId]: percent }));
-        }
-        
-        // Add item once all chunks sent
-        setItems((prev) => [
-          ...prev,
-          {
-            id: `own-${Date.now()}-${Math.random()}`,
-            type: itemType,
-            content: '', // Empty until reassembled
-            filename: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-            viewOnce: viewOnceMode,
-            expiresAt,
-            sensitivity,
-            senderId: myDeviceId,
-            senderName: 'You',
-            ts: Date.now(),
-            isOwn: true,
-          },
-        ]);
-      } else {
-        // For small files, send in one message
-        const content = await fileToBase64(file);
-        const payload: ClipPayload = {
+      // Use chunked upload for all files for reliability and to avoid message size limits
+      const fileId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      
+      // Add placeholder item immediately to show upload in progress
+      setItems((prev) => [
+        ...prev,
+        {
+          id: `own-${Date.now()}-${Math.random()}`,
           type: itemType,
-          content,
+          content: '', // Empty until reassembled
           filename: file.name,
           fileSize: file.size,
           mimeType: file.type,
           viewOnce: viewOnceMode,
           expiresAt,
           sensitivity,
+          senderId: myDeviceId,
+          senderName: 'You',
+          ts: Date.now(),
+          isOwn: true,
+        },
+      ]);
+      
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min((chunkIndex + 1) * CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        const chunkBase64 = await fileToBase64(chunk);
+        
+        const payload: ClipPayload = {
+          type: itemType,
+          content: chunkBase64,
+          filename: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          viewOnce: viewOnceMode,
+          expiresAt,
+          sensitivity,
+          isChunk: true,
+          chunkIndex,
+          totalChunks,
+          fileId,
         };
+        
         const encrypted = await encryptPayload(cryptoKeyRef.current, payload);
-        wsRef.current.send(JSON.stringify({ type: 'relay', payload: encrypted }));
-        setItems((prev) => [
-          ...prev,
-          {
-            id: `own-${Date.now()}-${Math.random()}`,
-            ...payload,
-            senderId: myDeviceId,
-            senderName: 'You',
-            ts: Date.now(),
-            isOwn: true,
-          },
-        ]);
+        wsRef.current?.send(JSON.stringify({ type: 'relay', payload: encrypted }));
+        
+        // Update progress
+        const percent = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+        setUploadProgress(prev => ({ ...prev, [fileId]: percent }));
       }
+      
+      // Clean up progress tracking for this file
+      setUploadProgress(prev => {
+        const copy = { ...prev };
+        delete copy[fileId];
+        return copy;
+      });
       setViewOnceMode(false);
       setPasswordMode(false);
       setExpiryMode('none');
@@ -1242,46 +1324,51 @@ export function ClipSync() {
 
   if (phase === 'idle' || phase === 'error') {
     return (
-      <div className="h-full flex flex-col items-center justify-start sm:justify-center px-4 py-8 overflow-y-auto">
-        <div className="w-full max-w-xl">
+      <div className="h-full flex flex-col items-center justify-start sm:justify-center px-4 py-12 overflow-y-auto bg-gradient-to-b from-slate-950/0 via-slate-950/30 to-slate-950/0">
+        <div className="w-full max-w-xl space-y-6">
           {/* Hero */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30 mb-4">
-              <Link2 className="w-7 h-7 text-white" />
+          <div className="text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-br from-brand-400 to-brand-500 shadow-2xl shadow-brand-500/50 mb-2">
+              <Link2 className="w-8 h-8 text-neutral-950" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">ClipSync</h1>
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-1">ClipSync</h1>
+              <p className="text-brand-400 text-sm font-medium">Secure Cross-Device Sharing</p>
+            </div>
             <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-              Share text, files and images between all your devices — instantly, with{' '}
-              <span className="text-indigo-400 font-medium">end-to-end encryption</span>.
+              Share text, files, images, audio, video, and location between your devices — instantly, with{' '}
+              <span className="text-brand-400 font-semibold">end-to-end encryption</span>.
             </p>
-            <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
-              <Lock className="w-3 h-3" />
-              <span>AES-256-GCM · Server only relays encrypted blobs</span>
+            <div className="inline-flex items-center gap-1.5 text-xs text-emerald-400 bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-2 shadow-lg shadow-emerald-500/10">
+              <Shield className="w-3.5 h-3.5" />
+              <span className="font-medium">AES-256-GCM · Zero-knowledge architecture</span>
             </div>
           </div>
 
           {/* Error banner */}
           {phase === 'error' && errorMsg && (
-            <div className="mb-5 flex items-start gap-2.5 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-400">
-              <X className="w-4 h-4 mt-0.5 shrink-0" />
+            <div className="mb-6 flex items-start gap-3 bg-gradient-to-r from-red-500/20 to-red-500/10 border border-red-500/40 rounded-xl px-4 py-3 text-sm text-red-300 shadow-lg shadow-red-500/10">
+              <X className="w-5 h-5 mt-0.5 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {/* Create / Join cards */}
-          <div className="grid sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
             {/* Create */}
-            <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col gap-4">
+            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 border border-brand-500/30 rounded-xl p-5 flex flex-col gap-4 hover:border-brand-500/60 hover:from-slate-800/80 hover:to-slate-900/80 transition-all duration-300 shadow-lg shadow-slate-900/20 hover:shadow-brand-500/20">
               <div>
-                <h2 className="text-sm font-semibold text-white mb-1.5">New room</h2>
+                <h2 className="text-sm font-bold text-white mb-1.5 flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-brand-500" />
+                  New Room
+                </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Create an encrypted room. Share the link or QR code with your other devices to
-                  connect.
+                  Create an encrypted room with a 6-char code to share with your devices.
                 </p>
               </div>
               <Button
                 onClick={createRoom}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+                className="w-full bg-brand-500 hover:bg-brand-400 text-neutral-950 font-semibold shadow-lg shadow-brand-500/40 transition-all duration-200 hover:shadow-brand-500/60 h-10"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Room
@@ -1289,39 +1376,41 @@ export function ClipSync() {
             </div>
 
             {/* Join */}
-            <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col gap-3">
+            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 border border-brand-500/30 rounded-xl p-5 flex flex-col gap-4 hover:border-brand-500/60 hover:from-slate-800/80 hover:to-slate-900/80 transition-all duration-300 shadow-lg shadow-slate-900/20 hover:shadow-brand-500/20">
               <div>
-                <h2 className="text-sm font-semibold text-white mb-1.5">Join existing room</h2>
+                <h2 className="text-sm font-bold text-white mb-1.5 flex items-center gap-2">
+                  <ArrowRight className="w-4 h-4 text-brand-500" />
+                  Join Room
+                </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Enter the{' '}
-                  <span className="text-white font-mono font-bold tracking-wider text-[11px]">
-                    6-char code
-                  </span>{' '}
-                  shown on the host device, or paste the PIN for owner approval.
+                  Enter the<span className="text-brand-300 font-mono font-bold mx-1">6-char code</span>
+                  shown on another device to join.
                 </p>
               </div>
-              <Input
-                placeholder="A4K7R2"
-                value={joinInput}
-                onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
-                maxLength={6}
-                className="bg-slate-800/70 border-slate-700 text-sm h-9 text-white placeholder:text-slate-500 font-mono tracking-wide uppercase"
-              />
-              <Button
-                variant="outline"
-                onClick={joinRoom}
-                className="w-full border-slate-700 hover:border-indigo-500 hover:text-white text-slate-300"
-              >
-                <ArrowRight className="w-4 h-4 mr-2" />
-                Join Room
-              </Button>
+              <div className="space-y-2">
+                <Input
+                  placeholder="A4K7R2"
+                  value={joinInput}
+                  onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                  maxLength={6}
+                  className="bg-slate-700/60 border-brand-500/30 text-center text-lg h-12 text-white placeholder:text-slate-500 font-mono tracking-[0.3em] uppercase font-bold focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-0 transition-all"
+                />
+                <Button
+                  onClick={joinRoom}
+                  className="w-full border-brand-500/50 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 hover:text-brand-300 font-semibold hover:shadow-md hover:shadow-brand-500/20 transition-all duration-200 h-10"
+                >
+                  <ArrowRight className="w-4 h-4 mr-2" />
+                  Join
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* How it works */}
-          <div className="bg-slate-900/40 border border-slate-800/50 rounded-xl p-4">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          <div className="bg-gradient-to-r from-brand-500/10 to-brand-400/5 border border-brand-500/30 rounded-xl p-4 shadow-lg shadow-brand-500/10">
+            <p className="text-[11px] font-bold text-brand-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Zap className="w-3 h-3" />
               How it works
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
@@ -1343,7 +1432,7 @@ export function ClipSync() {
                 },
               ].map(({ n, t, d }) => (
                 <div key={n} className="flex gap-3 flex-1">
-                  <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                  <span className="w-5 h-5 rounded-full bg-brand-500/30 text-brand-400 text-xs flex items-center justify-center shrink-0 mt-0.5 font-bold">
                     {n}
                   </span>
                   <div>
@@ -1365,7 +1454,7 @@ export function ClipSync() {
   if (phase === 'connecting') {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
         <p className="text-sm">Connecting to room…</p>
       </div>
     );
@@ -1386,12 +1475,12 @@ export function ClipSync() {
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 flex-wrap shrink-0">
         {/* Room code pill — the prominent 6-char code users share verbally */}
-        <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700/40 rounded-xl px-3 py-2 min-w-0 flex-1">
-          <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span className="text-[11px] text-slate-500 shrink-0 hidden sm:inline">Code</span>
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-brand-500/30 rounded-xl px-3 py-2 min-w-0 flex-1 shadow-md shadow-brand-500/10 hover:border-brand-500/50 transition-colors">
+          <Lock className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+          <span className="text-[11px] text-brand-400 shrink-0 hidden sm:inline font-medium">Code</span>
           {/* Large readable code — letter-spaced for easy reading aloud */}
           <code
-            className="text-sm font-mono font-bold tracking-[0.25em] text-white px-2 py-0.5 rounded bg-slate-800/70 cursor-pointer select-all"
+            className="text-sm font-mono font-bold tracking-[0.25em] text-brand-400 px-2 py-0.5 rounded bg-slate-800/60 cursor-pointer select-all hover:bg-slate-800 transition-colors"
             title="Room code — type this on another device to join"
             onClick={copyInviteCode}
           >
@@ -1401,7 +1490,7 @@ export function ClipSync() {
             <button
               onClick={copyInviteCode}
               title="Copy 6-char room code (fastest way to join)"
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/60"
+              className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-500 transition-colors px-2 py-1 rounded-md hover:bg-brand-500/10"
             >
               {codeCopied ? (
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -1413,7 +1502,7 @@ export function ClipSync() {
             <button
               onClick={copyLink}
               title="Copy full room link"
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/60"
+              className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-500 transition-colors px-2 py-1 rounded-md hover:bg-brand-500/10"
             >
               {linkCopied ? (
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -1430,8 +1519,8 @@ export function ClipSync() {
               className={[
                 'flex items-center gap-1.5 text-xs transition-colors px-2 py-1 rounded-md',
                 showQR
-                  ? 'text-indigo-400 bg-indigo-500/10'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60',
+                  ? 'text-brand-500 bg-brand-500/20'
+                  : 'text-brand-400 hover:text-brand-500 hover:bg-brand-500/10',
               ].join(' ')}
             >
               <QrCode className="w-3.5 h-3.5" />
@@ -1443,7 +1532,7 @@ export function ClipSync() {
         {/* Peer count */}
         <button
           onClick={() => setShowDevices((v) => !v)}
-          className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700/40 rounded-xl px-3 py-2 text-xs text-slate-400 hover:text-white transition-colors shrink-0"
+          className="flex items-center gap-1.5 bg-slate-900/80 border border-emerald-500/40 rounded-lg px-3 py-2 text-xs text-emerald-400 hover:text-emerald-300 transition-all shrink-0 hover:border-emerald-500/60 hover:bg-emerald-500/10 font-medium shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/20"
         >
           <Users className="w-3.5 h-3.5 text-emerald-400" />
           <span>
@@ -1455,7 +1544,7 @@ export function ClipSync() {
         {/* Leave */}
         <button
           onClick={leaveRoom}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors px-3 py-2 rounded-xl border border-slate-700/40 bg-slate-900/60 shrink-0"
+          className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all px-3 py-2 rounded-lg border border-red-500/40 bg-red-950/30 shrink-0 font-medium shadow-md shadow-red-500/10 hover:shadow-red-500/20"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Leave</span>
@@ -1467,7 +1556,7 @@ export function ClipSync() {
         <div className="flex gap-2 mx-2 flex-wrap">
           <button
             onClick={rotateKey}
-            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-900/60"
+            className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-500 hover:bg-brand-500/10 transition-colors px-3 py-2 rounded-lg border border-brand-500/30 bg-slate-800/60"
             title="Rotate encryption key for all peers"
           >
             <RotateCw className="w-3.5 h-3.5" />
@@ -1477,8 +1566,8 @@ export function ClipSync() {
             onClick={toggleAcceptingJoins}
             className={`flex items-center gap-1.5 text-xs transition-colors px-3 py-2 rounded-lg border ${
               acceptingNewJoins
-                ? 'text-slate-300 hover:text-blue-300 hover:bg-blue-500/10 border-slate-700/40 bg-slate-900/60'
-                : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-700/40 bg-red-950/20'
+                ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border-emerald-500/30 bg-slate-800/60'
+                : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30 bg-slate-800/60'
             }`}
             title={`${acceptingNewJoins ? 'Disable' : 'Enable'} new join requests`}
           >
@@ -1487,7 +1576,7 @@ export function ClipSync() {
           </button>
           <button
             onClick={rotateRoomCode}
-            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-purple-300 hover:bg-purple-500/10 transition-colors px-3 py-2 rounded-lg border border-slate-700/40 bg-slate-900/60"
+            className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors px-3 py-2 rounded-lg border border-blue-500/30 bg-slate-800/60"
             title="Regenerate invite code"
           >
             <Slash className="w-3.5 h-3.5" />
@@ -1498,8 +1587,8 @@ export function ClipSync() {
 
       {/* Pending join requests (owner only) */}
       {joinRequests.length > 0 && (
-        <div className="bg-amber-900/10 border border-amber-700/20 rounded-lg px-3 py-2 mx-2">
-          <div className="text-xs text-amber-200 font-semibold mb-2">Pending join requests</div>
+        <div className="bg-slate-900/60 border border-brand-500/20 rounded-lg px-3 py-2 mx-2 shadow-lg shadow-brand-500/5">
+          <div className="text-xs text-brand-400 font-semibold mb-2 flex items-center gap-1"><Zap className="w-3 h-3" /> Pending approval</div>
           <div className="flex gap-2 flex-wrap">
             {joinRequests.map((r) => (
               <div key={r.deviceId} className="bg-slate-800/40 border border-slate-700/30 rounded-md px-3 py-2 flex items-center gap-3 min-w-[250px]">
@@ -1508,8 +1597,8 @@ export function ClipSync() {
                   <div className="text-[10px] text-slate-500 truncate">{r.deviceId}</div>
                 </div>
                 <div className="ml-2 flex gap-1">
-                  <Button size="sm" onClick={() => approveRequest(r.deviceId, r.ecdhPub)} className="bg-emerald-600 hover:bg-emerald-500 text-white">Approve</Button>
-                  <Button size="sm" variant="outline" onClick={() => rejectRequest(r.deviceId)} className="ml-1 border-slate-600 text-slate-300 hover:text-white">Reject</Button>
+                  <Button size="sm" onClick={() => approveRequest(r.deviceId, r.ecdhPub)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium">Approve</Button>
+                  <Button size="sm" variant="outline" onClick={() => rejectRequest(r.deviceId)} className="ml-1 border-red-600/50 text-red-300 hover:text-red-100 hover:bg-red-500/10">Reject</Button>
                 </div>
               </div>
             ))}
@@ -1519,15 +1608,15 @@ export function ClipSync() {
 
       {/* ── Collapsed devices panel ── */}
       {showDevices && (
-        <div className="shrink-0 flex flex-col gap-2 bg-slate-900/40 border border-slate-800/50 rounded-xl p-3">
+        <div className="shrink-0 flex flex-col gap-2 bg-slate-900/60 border border-brand-500/20 rounded-xl p-3 shadow-md shadow-brand-500/5">
           <div className="flex flex-wrap gap-2">
             {peers.map((p) => (
               <div
                 key={p.deviceId}
-                className="flex items-center gap-1.5 bg-slate-800/50 rounded-lg px-2.5 py-1.5 text-xs group"
+                className="flex items-center gap-1.5 bg-slate-800/60 border border-brand-500/20 rounded-lg px-2.5 py-1.5 text-xs group hover:border-brand-500/40 transition-colors"
               >
                 <span
-                  className={`w-1.5 h-1.5 rounded-full ${p.deviceId === myDeviceId ? 'bg-indigo-400' : 'bg-emerald-400'}`}
+                  className={`w-1.5 h-1.5 rounded-full ${p.deviceId === myDeviceId ? 'bg-amber-400' : 'bg-emerald-400'}`}
                 />
                 <span className="text-slate-300">
                   {p.deviceId === myDeviceId ? `You (${p.deviceName})` : p.deviceName}
@@ -1544,15 +1633,15 @@ export function ClipSync() {
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-slate-600">
-            <Shield className="w-3 h-3" /> E2E encrypted
+          <div className="flex items-center gap-1 text-[10px] text-emerald-600">
+            <Shield className="w-3 h-3" /> E2E encrypted with AES-256-GCM
           </div>
         </div>
       )}
 
       {/* ── QR panel ── */}
       {showQR && (
-        <div className="shrink-0 flex items-start gap-4 bg-slate-900/60 border border-slate-700/40 rounded-xl p-4">
+        <div className="shrink-0 flex items-start gap-4 bg-slate-900/60 border border-brand-500/20 rounded-xl p-4 shadow-md shadow-brand-500/5">
           {qrDataUrl ? (
             <img
               src={qrDataUrl}
@@ -1564,8 +1653,9 @@ export function ClipSync() {
           )}
           <div className="flex-1 min-w-0 flex flex-col gap-3">
             <div>
-              <p className="text-sm font-semibold text-white mb-1">
-                Scan to join on another device
+              <p className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-brand-500" />
+                Scan to join
               </p>
               <p className="text-xs text-slate-400 leading-relaxed">
                 The 256-bit encryption key is generated per-room and delivered to approved peers via ECDH key wrapping.
@@ -1574,16 +1664,16 @@ export function ClipSync() {
             </div>
             {/* Invite code — primary share mechanism (PIN-only) */}
             <div>
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Invite PIN (no key)
+              <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Key className="w-3 h-3" /> Invite PIN (no key)
               </p>
               <div className="relative group">
-                <code className="block text-[11px] font-mono text-indigo-300 bg-slate-800/70 rounded-lg p-2.5 break-all leading-relaxed pr-8 select-all">
+                <code className="block text-[11px] font-mono text-brand-400 bg-slate-800/70 rounded-lg p-2.5 break-all leading-relaxed pr-8 select-all border border-brand-500/20">
                   {inviteCode}
                 </code>
                 <button
                   onClick={copyInviteCode}
-                  className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-700/70 hover:bg-slate-600/70 text-slate-400 hover:text-white transition-colors"
+                  className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-700/50 hover:bg-slate-600 text-slate-400 hover:text-brand-400 transition-colors"
                   title="Copy invite code"
                 >
                   {codeCopied ? (
@@ -1603,7 +1693,7 @@ export function ClipSync() {
                 Room URL (PIN only)
               </p>
               <div className="relative group">
-                <code className="block text-[10px] font-mono text-slate-500 bg-slate-800/70 rounded-lg p-2.5 break-all leading-relaxed pr-8 select-all">
+                <code className="block text-[10px] font-mono text-slate-400 bg-slate-800/70 rounded-lg p-2.5 break-all leading-relaxed pr-8 select-all border border-slate-700/20">
                   {roomUrl}
                 </code>
                 <button
@@ -1634,25 +1724,27 @@ export function ClipSync() {
           className={[
             'flex-1 min-h-0 overflow-y-auto rounded-xl border transition-all duration-200',
             dragging
-              ? 'border-indigo-500/60 bg-indigo-500/5 ring-2 ring-indigo-500/20'
-              : 'border-slate-800/50 bg-slate-900/30',
+              ? 'border-brand-500/60 bg-brand-500/5 ring-2 ring-brand-500/20'
+              : 'border-slate-700/50 bg-slate-900/30',
           ].join(' ')}
         >
           {items.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8">
-              <div className="w-12 h-12 rounded-2xl bg-slate-800/70 flex items-center justify-center mb-3">
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-500/30 to-brand-400/10 flex items-center justify-center border border-brand-500/40 shadow-lg shadow-brand-500/10">
                 {dragging ? (
-                  <Download className="w-5 h-5 text-indigo-400" />
+                  <Download className="w-6 h-6 text-brand-500 animate-bounce" />
                 ) : (
-                  <Link2 className="w-5 h-5 text-slate-600" />
+                  <Link2 className="w-6 h-6 text-brand-500/50" />
                 )}
               </div>
-              <p className="text-sm text-slate-500">
-                {dragging ? 'Drop to share' : 'No shared items yet'}
-              </p>
-              <p className="text-xs text-slate-600 mt-1">
-                {dragging ? '' : 'Type a message or drop a file from another device to get started'}
-              </p>
+              <div>
+                <p className="text-sm font-semibold text-slate-400">
+                  {dragging ? 'Drop to share' : 'No shared items yet'}
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  {dragging ? '' : 'Type a message, attach files, or use the buttons below'}
+                </p>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-2 p-3">
@@ -1670,14 +1762,14 @@ export function ClipSync() {
         </div>
 
         {/* Compose */}
-        <div className="shrink-0 bg-slate-900/50 border border-slate-800/50 rounded-xl p-3 flex flex-col gap-2">
+        <div className="shrink-0 bg-gradient-to-b from-slate-900/70 to-slate-950/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col gap-3 hover:border-brand-500/30 transition-all duration-200 shadow-2xl shadow-black/30">
           <Textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             onKeyDown={handleTextKeyDown}
             placeholder="Type or paste text… (Enter to send · Shift+Enter for new line)"
             rows={3}
-            className="resize-none bg-slate-800/50 border-slate-700/50 text-sm text-white placeholder:text-slate-500 focus-visible:ring-indigo-500/40 focus-visible:border-indigo-500/40"
+            className="resize-none bg-slate-800/70 border-slate-700/60 text-sm text-white placeholder:text-slate-500 focus-visible:ring-brand-500/40 focus-visible:border-brand-500/50 rounded-lg transition-all font-medium"
           />
           <div className="flex items-center gap-2 flex-wrap">
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
@@ -1745,7 +1837,7 @@ export function ClipSync() {
               onClick={() => setViewOnceMode((v) => !v)}
               className={`flex items-center gap-1.5 text-xs transition-colors px-2.5 py-1.5 rounded-lg border ${
                 viewOnceMode
-                  ? 'text-amber-300 border-amber-600/60 bg-amber-950/30'
+                  ? 'text-orange-300 border-orange-500/50 bg-orange-500/10'
                   : 'text-slate-400 hover:text-white border-slate-700/50 hover:border-slate-600 bg-slate-800/40'
               }`}
               title="View once"
@@ -1786,7 +1878,7 @@ export function ClipSync() {
               onClick={sendText}
               disabled={!textInput.trim() || wsRef.current?.readyState !== WebSocket.OPEN}
               size="sm"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40"
+              className="bg-brand-500 hover:bg-brand-400 text-neutral-950 font-bold disabled:opacity-40 shadow-lg shadow-brand-500/50 hover:shadow-brand-500/70 transition-all h-9 px-4"
             >
               <Send className="w-3.5 h-3.5 mr-1.5" />
               Send
@@ -1797,11 +1889,11 @@ export function ClipSync() {
 
       {isCameraOpen && (
         <div className="absolute inset-0 z-30 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-xl p-3">
-            <video ref={cameraVideoRef} autoPlay playsInline muted className="w-full rounded-lg bg-black max-h-[60vh] object-contain" />
+          <div className="w-full max-w-xl bg-slate-900 border border-brand-500/30 rounded-xl p-3 shadow-xl shadow-brand-500/20">
+            <video ref={cameraVideoRef} autoPlay playsInline muted className="w-full rounded-lg bg-black max-h-[60vh] object-contain border border-brand-500/20" />
             <div className="mt-3 flex items-center justify-end gap-2">
               <Button variant="outline" onClick={closeCamera}>Cancel</Button>
-              <Button className="bg-indigo-600 hover:bg-indigo-500 text-white" onClick={capturePhoto}>
+              <Button className="bg-brand-500 hover:bg-brand-400 text-neutral-950 font-medium" onClick={capturePhoto}>
                 <Camera className="w-4 h-4 mr-1" /> Capture & Send
               </Button>
             </div>
@@ -1852,7 +1944,7 @@ function ClipItemCard({ item, copiedId, onCopy, onDownload }: CardProps) {
       className={[
         'group relative rounded-xl border text-sm transition-all',
         item.isOwn
-          ? 'bg-indigo-500/10 border-indigo-500/20 sm:ml-10'
+          ? 'bg-brand-500/10 border-brand-500/20 sm:ml-10'
           : 'bg-slate-800/50 border-slate-700/30 sm:mr-10',
       ].join(' ')}
     >

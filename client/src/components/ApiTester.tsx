@@ -21,6 +21,7 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  Terminal,
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 import { Button } from '@/components/ui/button';
@@ -48,13 +49,13 @@ import type {
 // ---- Constants ---------------------------------------------------------------
 
 const METHOD_COLORS: Record<HttpMethod, string> = {
-  GET: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-  POST: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  PUT: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-  PATCH: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  DELETE: 'bg-red-500/15 text-red-400 border-red-500/30',
-  HEAD: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
-  OPTIONS: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+  GET: 'bg-brand-500/15 text-brand-500 border-brand-500/30',
+  POST: 'bg-brand-500/10 text-brand-400 border-brand-500/20',
+  PUT: 'bg-brand-500/5 text-brand-300 border-brand-500/20',
+  PATCH: 'bg-neutral-800/50 text-neutral-400 border-neutral-700/50',
+  DELETE: 'bg-neutral-900/50 text-neutral-500 border-neutral-800',
+  HEAD: 'bg-neutral-500/15 text-neutral-400 border-neutral-500/30',
+  OPTIONS: 'bg-brand-500/15 text-brand-500 border-brand-500/30',
 };
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const BODY_TYPES: BodyType[] = ['none', 'json', 'text', 'form', 'xml'];
@@ -379,11 +380,10 @@ function highlightJson(json: string): string {
 }
 
 function statusColor(s: number) {
-  if (s < 200) return 'text-slate-400';
-  if (s < 300) return 'text-emerald-400';
-  if (s < 400) return 'text-blue-400';
-  if (s < 500) return 'text-amber-400';
-  return 'text-red-400';
+  if (s < 200) return 'text-neutral-400';
+  if (s < 300) return 'text-brand-500';
+  if (s < 400) return 'text-brand-400';
+  return 'text-neutral-500';
 }
 
 function fmtBytes(n: number) {
@@ -855,10 +855,12 @@ function KVEditor({
         </datalist>
       )}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+          {label}
+        </span>
         <button
           onClick={add}
-          className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300"
+          className="flex items-center gap-1 text-xs text-brand-500 hover:text-brand-400"
         >
           <Plus className="w-3 h-3" />
           Add
@@ -883,7 +885,7 @@ function KVEditor({
                 list={keyListId}
                 placeholder={placeholderKey}
                 aria-label={`${label} key ${i + 1}`}
-                className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500/60 font-mono"
+                className="flex-1 bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-2.5 py-1.5 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-brand-500/60 font-mono"
               />
               {dynValSugg && (
                 <datalist id={dynValListId}>
@@ -898,11 +900,11 @@ function KVEditor({
                 list={dynValListId}
                 placeholder={placeholderVal}
                 aria-label={`${label} value ${i + 1}`}
-                className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500/60 font-mono"
+                className="flex-1 bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-2.5 py-1.5 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-brand-500/60 font-mono"
               />
               <button
                 onClick={() => remove(row.id)}
-                className="p-1.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                className="p-1.5 text-neutral-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                 aria-label="Remove row"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -911,9 +913,10 @@ function KVEditor({
           );
         })}
         {rows.length === 0 && (
-          <p className="text-xs text-slate-600 py-2 text-center">
-            No {label.toLowerCase()} — click Add
-          </p>
+          <div className="flex flex-col items-center justify-center py-4 text-neutral-600 gap-2 border border-dashed border-neutral-800 rounded-xl bg-neutral-900/20">
+            <Plus className="w-4 h-4 opacity-20" />
+            <p className="text-[10px] uppercase tracking-wider font-medium">No {label} added</p>
+          </div>
         )}
       </div>
     </div>
@@ -937,14 +940,14 @@ function RespTabBtn({
       className={[
         'relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap',
         active
-          ? 'border-indigo-500 text-indigo-400'
-          : 'border-transparent text-slate-500 hover:text-slate-300',
+          ? 'border-brand-500 text-brand-500'
+          : 'border-transparent text-neutral-500 hover:text-neutral-300',
       ].join(' ')}
     >
       {label}
       {badge !== undefined && badge > 0 && (
         <span
-          className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none ${active ? 'bg-indigo-500/25 text-indigo-300' : 'bg-slate-700 text-slate-400'}`}
+          className={`px-1.5 py-0.5 text-[10px] rounded-full leading-none ${active ? 'bg-brand-500/25 text-brand-500' : 'bg-neutral-700 text-neutral-400'}`}
         >
           {badge}
         </span>
@@ -962,7 +965,7 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-2">
+        <label className="text-xs font-medium text-neutral-400 uppercase tracking-wider block mb-2">
           Auth Type
         </label>
         <div className="flex flex-wrap gap-2">
@@ -972,8 +975,8 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
               onClick={() => set('type', t)}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
                 auth.type === t
-                  ? 'bg-brand-500/15 border-brand-500/50 text-brand-300'
-                  : 'border-slate-700/50 text-slate-500 hover:text-slate-300'
+                  ? 'bg-brand-500/15 border-brand-500/50 text-brand-500'
+                  : 'border-neutral-700/50 text-neutral-500 hover:text-neutral-300'
               }`}
             >
               {t === 'none'
@@ -990,18 +993,18 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
 
       {auth.type === 'bearer' && (
         <div>
-          <label className="text-xs text-slate-400 mb-1 block">Token</label>
+          <label className="text-xs text-neutral-400 mb-1 block">Token</label>
           <div className="relative">
             <input
               type={showPw ? 'text' : 'password'}
               value={auth.token ?? ''}
               onChange={(e) => set('token', e.target.value)}
               placeholder="eyJhbGci..."
-              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 pr-10 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-brand-500/60"
+              className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 pr-10 text-sm text-neutral-200 font-mono placeholder-neutral-600 focus:outline-none focus:border-brand-500/60"
             />
             <button
               onClick={() => setShowPw(!showPw)}
-              className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
+              className="absolute right-2.5 top-2.5 text-neutral-500 hover:text-neutral-300"
             >
               {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
@@ -1012,25 +1015,25 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
       {auth.type === 'basic' && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Username</label>
+            <label className="text-xs text-neutral-400 mb-1 block">Username</label>
             <input
               value={auth.username ?? ''}
               onChange={(e) => set('username', e.target.value)}
-              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-brand-500/60"
+              className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 text-sm text-neutral-200 font-mono focus:outline-none focus:border-brand-500/60"
             />
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Password</label>
+            <label className="text-xs text-neutral-400 mb-1 block">Password</label>
             <div className="relative">
               <input
                 type={showPw ? 'text' : 'password'}
                 value={auth.password ?? ''}
                 onChange={(e) => set('password', e.target.value)}
-                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 pr-10 text-sm text-slate-200 font-mono focus:outline-none focus:border-brand-500/60"
+                className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 pr-10 text-sm text-neutral-200 font-mono focus:outline-none focus:border-brand-500/60"
               />
               <button
                 onClick={() => setShowPw(!showPw)}
-                className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
+                className="absolute right-2.5 top-2.5 text-neutral-500 hover:text-neutral-300"
               >
                 {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -1043,26 +1046,26 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Key name</label>
+              <label className="text-xs text-neutral-400 mb-1 block">Key name</label>
               <input
                 value={auth.apiKeyName ?? ''}
                 onChange={(e) => set('apiKeyName', e.target.value)}
                 placeholder="X-API-Key"
-                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-brand-500/60"
+                className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 text-sm text-neutral-200 font-mono focus:outline-none focus:border-brand-500/60"
               />
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Value</label>
+              <label className="text-xs text-neutral-400 mb-1 block">Value</label>
               <input
                 type={showPw ? 'text' : 'password'}
                 value={auth.apiKeyValue ?? ''}
                 onChange={(e) => set('apiKeyValue', e.target.value)}
-                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-brand-500/60"
+                className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 text-sm text-neutral-200 font-mono focus:outline-none focus:border-brand-500/60"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Add to</label>
+            <label className="text-xs text-neutral-400 mb-1 block">Add to</label>
             <div className="flex gap-2">
               {(['header', 'query'] as const).map((loc) => (
                 <button
@@ -1070,8 +1073,8 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
                   onClick={() => set('apiKeyIn', loc)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
                     auth.apiKeyIn === loc
-                      ? 'bg-brand-500/15 border-brand-500/50 text-brand-300'
-                      : 'border-slate-700/50 text-slate-500 hover:text-slate-300'
+                      ? 'bg-brand-500/15 border-brand-500/50 text-brand-500'
+                      : 'border-neutral-700/50 text-neutral-500 hover:text-neutral-300'
                   }`}
                 >
                   {loc === 'header' ? 'Header' : 'Query Param'}
@@ -1081,7 +1084,7 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
           </div>
           <button
             onClick={() => setShowPw(!showPw)}
-            className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1"
+            className="text-xs text-neutral-500 hover:text-neutral-300 flex items-center gap-1"
           >
             {showPw ? (
               <>
@@ -1099,7 +1102,7 @@ function AuthPanel({ auth, onChange }: { auth: AuthConfig; onChange: (a: AuthCon
       )}
 
       {auth.type === 'none' && (
-        <p className="text-xs text-slate-600 py-2">
+        <p className="text-xs text-neutral-600 py-2">
           No authentication will be added to this request.
         </p>
       )}
@@ -1139,7 +1142,7 @@ function BodyPanel({
             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
               bodyType === bt
                 ? 'bg-brand-500/15 border-brand-500/50 text-brand-300'
-                : 'border-slate-700/50 text-slate-500 hover:text-slate-300'
+                : 'border-neutral-700/50 text-neutral-500 hover:text-neutral-300'
             }`}
           >
             {bt === 'none' ? 'None' : bt.toUpperCase()}
@@ -1164,12 +1167,12 @@ function BodyPanel({
           placeholder={placeholder[bodyType]}
           rows={10}
           spellCheck={false}
-          className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-brand-500/60 resize-none"
+          className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-200 font-mono placeholder-neutral-600 focus:outline-none focus:border-brand-500/60 resize-none"
         />
       )}
 
       {bodyType === 'none' && (
-        <p className="text-xs text-slate-600 py-2 text-center">
+        <p className="text-xs text-neutral-600 py-2 text-center">
           No body will be sent with this request.
         </p>
       )}
@@ -1219,7 +1222,7 @@ function CurlImportPanel({ onImport }: { onImport: (parsed: Partial<ApiRequest>)
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-neutral-500">
         Paste a cURL command and import it into the request builder.
       </p>
       <textarea
@@ -1230,13 +1233,13 @@ function CurlImportPanel({ onImport }: { onImport: (parsed: Partial<ApiRequest>)
         }
         rows={8}
         spellCheck={false}
-        className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-brand-500/60 resize-none"
+        className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-xl px-3 py-2.5 text-sm text-neutral-200 font-mono placeholder-neutral-600 focus:outline-none focus:border-brand-500/60 resize-none"
       />
       {err && <p className="text-xs text-red-400">{err}</p>}
       <button
         onClick={parse}
         disabled={!cmd.trim()}
-        className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-all"
+        className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-400 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-all"
       >
         <Download className="w-4 h-4" />
         Import cURL
@@ -1320,64 +1323,65 @@ function WebhookPanel() {
   return (
     <div className="space-y-4 h-full">
       {!webhookId ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-8">
-          <Webhook className="w-12 h-12 text-slate-700" />
-          <div className="text-center">
-            <p className="text-sm text-slate-400 font-medium mb-1">Webhook Tester</p>
-            <p className="text-xs text-slate-600 max-w-xs">
-              Generate a unique URL and start receiving HTTP requests in real-time. Perfect for
-              testing webhooks.
+        <div className="flex flex-col items-center justify-center gap-6 py-12 bg-neutral-900/40 border border-neutral-800/50 rounded-2xl backdrop-blur-sm">
+          <div className="p-5 rounded-full bg-brand-500/5 ring-1 ring-brand-500/20 animate-pulse">
+            <Webhook className="w-12 h-12 text-brand-500/40" />
+          </div>
+          <div className="text-center px-6">
+            <h3 className="text-base font-bold text-neutral-200 mb-2">Webhook Listener</h3>
+            <p className="text-sm text-neutral-500 max-w-xs leading-relaxed">
+              Create a secure endpoint to capture and inspect real-time HTTP requests.
             </p>
           </div>
           <button
             onClick={create}
             disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-all"
+            className="flex items-center gap-2 px-6 py-3 bg-brand-500 hover:bg-brand-400 disabled:opacity-40 text-neutral-900 text-sm font-bold rounded-xl transition-all shadow-lg shadow-brand-500/20 transform hover:scale-105"
           >
             {loading ? (
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-neutral-900/30 border-t-neutral-900 rounded-full animate-spin" />
             ) : (
               <Plus className="w-4 h-4" />
             )}
-            Generate Webhook URL
+            Start Listening
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           {/* URL bar */}
-          <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3">
+          <div className="bg-neutral-800/60 border border-neutral-700/50 rounded-xl p-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-medium text-slate-400">Your webhook URL</span>
-              <span className="text-xs px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded font-mono">
+              <span className="text-xs font-medium text-neutral-400">Your webhook URL</span>
+              <span className="text-xs px-1.5 py-0.5 bg-brand-500/15 text-brand-500 border border-brand-500/30 rounded font-mono">
                 LIVE
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono text-brand-300 bg-slate-900/60 rounded-lg px-3 py-2 break-all">
+              <code className="flex-1 text-xs font-mono text-brand-300 bg-neutral-900/60 rounded-lg px-3 py-2 break-all">
                 {webhookUrl}
               </code>
               <button
                 onClick={copy}
-                className={`shrink-0 p-2 rounded-lg transition-colors ${copied ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`}
+                className={`shrink-0 p-2 rounded-lg transition-colors ${copied ? 'bg-brand-500/20 text-brand-500' : 'bg-neutral-700 hover:bg-neutral-600 text-neutral-300'}`}
                 title="Copy URL"
               >
                 <Copy className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-slate-600 mt-2">
+            <p className="text-xs text-neutral-600 mt-2">
               Send any HTTP request to this URL. It expires in 1 hour.
             </p>
           </div>
 
           {/* Event list */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">
+            <span className="text-xs font-medium text-neutral-400">
               Incoming requests ({events.length})
             </span>
             <div className="flex gap-2">
               <button
                 onClick={() => setEvents([])}
-                className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1"
+                className="text-xs text-neutral-500 hover:text-neutral-300 flex items-center gap-1"
               >
                 <Trash2 className="w-3 h-3" />
                 Clear
@@ -1393,7 +1397,7 @@ function WebhookPanel() {
           </div>
 
           {events.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-slate-600 gap-2">
+            <div className="flex flex-col items-center justify-center py-8 text-neutral-600 gap-2">
               <Globe className="w-8 h-8 opacity-30" />
               <p className="text-xs">Waiting for requests...</p>
             </div>
@@ -1407,38 +1411,38 @@ function WebhookPanel() {
                     className={`w-full text-left p-2.5 rounded-xl border transition-all ${
                       selectedEvent?.id === ev.id
                         ? 'bg-brand-500/10 border-brand-500/40'
-                        : 'bg-slate-800/40 border-slate-700/40 hover:border-slate-600'
+                        : 'bg-neutral-800/40 border-neutral-700/40 hover:border-neutral-600'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-0.5">
                       <span
                         className={`text-xs font-bold font-mono ${
                           ev.method === 'GET'
-                            ? 'text-emerald-400'
+                            ? 'text-brand-500'
                             : ev.method === 'POST'
-                              ? 'text-blue-400'
+                              ? 'text-brand-400'
                               : 'text-amber-400'
                         }`}
                       >
                         {ev.method}
                       </span>
-                      <span className="text-xs text-slate-500">{fmtDate(ev.receivedAt)}</span>
+                      <span className="text-xs text-neutral-500">{fmtDate(ev.receivedAt)}</span>
                     </div>
-                    <p className="text-xs text-slate-400 truncate">
+                    <p className="text-xs text-neutral-400 truncate">
                       {ev.headers['content-type'] ?? 'No content-type'}
                     </p>
                   </button>
                 ))}
               </div>
               {selectedEvent && (
-                <div className="overflow-y-auto bg-slate-900/60 border border-slate-700/40 rounded-xl p-3">
-                  <p className="text-xs font-medium text-slate-400 mb-2">
+                <div className="overflow-y-auto bg-neutral-900/60 border border-neutral-700/40 rounded-xl p-3">
+                  <p className="text-xs font-medium text-neutral-400 mb-2">
                     {selectedEvent.method} —{' '}
                     {new Date(selectedEvent.receivedAt).toLocaleTimeString()}
                   </p>
                   {Object.keys(selectedEvent.query).length > 0 && (
                     <div className="mb-2">
-                      <p className="text-[10px] uppercase text-slate-600 mb-1">Query</p>
+                      <p className="text-[10px] uppercase text-neutral-600 mb-1">Query</p>
                       {Object.entries(selectedEvent.query).map(([k, v]) => (
                         <div key={k} className="text-xs font-mono">
                           <span className="text-brand-300">{k}</span>: {v}
@@ -1446,8 +1450,8 @@ function WebhookPanel() {
                       ))}
                     </div>
                   )}
-                  <p className="text-[10px] uppercase text-slate-600 mb-1">Body</p>
-                  <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">
+                  <p className="text-[10px] uppercase text-neutral-600 mb-1">Body</p>
+                  <pre className="text-xs font-mono text-neutral-300 whitespace-pre-wrap break-all">
                     {typeof selectedEvent.body === 'object'
                       ? JSON.stringify(selectedEvent.body, null, 2)
                       : String(selectedEvent.bodyRaw || '(empty)')}
@@ -1565,7 +1569,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
     if (showLineNumbers) {
       return (
         <div className="flex font-mono text-xs leading-relaxed p-4">
-          <div className="pr-4 text-slate-500 select-none border-r border-slate-700/50 mr-4">
+          <div className="pr-4 text-neutral-500 select-none border-r border-neutral-700/50 mr-4">
             {lines.map((_, i) => (
               <div key={i} className="text-right pr-2 py-0.5">
                 {i + 1}
@@ -1644,13 +1648,13 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
         >
           {response.ok ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
           {response.status}
-          <span className="text-sm font-normal text-slate-400">{response.statusText}</span>
+          <span className="text-sm font-normal text-neutral-400">{response.statusText}</span>
         </span>
-        <span className="flex items-center gap-1.5 text-xs text-slate-400">
+        <span className="flex items-center gap-1.5 text-xs text-neutral-400">
           <Clock className="w-3 h-3" />
           {response.elapsed} ms
         </span>
-        <span className="flex items-center gap-1.5 text-xs text-slate-400">
+        <span className="flex items-center gap-1.5 text-xs text-neutral-400">
           <FileText className="w-3 h-3" />
           {fmtBytes(response.size)}
           {isLargeResponse && <span className="text-amber-400 ml-1">(Large)</span>}
@@ -1664,16 +1668,16 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
         <div className="ml-auto flex gap-2">
           <button
             onClick={downloadBody}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             Save
           </button>
           <button
             onClick={() => copy(response.bodyRaw)}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-neutral-200 transition-colors"
           >
-            <Copy className={`w-3.5 h-3.5 ${copied ? 'text-green-400' : ''}`} />
+            <Copy className={`w-3.5 h-3.5 ${copied ? 'text-brand-500' : ''}`} />
             {copied ? 'Copied!' : 'Copy'}
           </button>
         </div>
@@ -1688,7 +1692,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
         </div>
       )}
 
-      <div className="flex gap-0 mb-3 border-b border-slate-700/40 overflow-x-auto no-scrollbar">
+      <div className="flex gap-0 mb-3 border-b border-neutral-800 overflow-x-auto no-scrollbar">
         {(['body', 'headers', 'cookies', 'tests', 'raw', 'preview', 'curl'] as RespTab[]).map(
           (t) => (
             <RespTabBtn
@@ -1716,7 +1720,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
             placeholder="Search headers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500/60"
+            className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-brand-500/60"
           />
         </div>
       )}
@@ -1729,7 +1733,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
               bodyFormat === 'pretty'
                 ? 'bg-brand-500/15 border-brand-500/50 text-brand-300'
-                : 'border-slate-700/50 text-slate-500 hover:text-slate-300'
+                : 'border-neutral-700/50 text-neutral-500 hover:text-neutral-300'
             }`}
           >
             Pretty
@@ -1739,7 +1743,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
               bodyFormat === 'raw'
                 ? 'bg-brand-500/15 border-brand-500/50 text-brand-300'
-                : 'border-slate-700/50 text-slate-500 hover:text-slate-300'
+                : 'border-neutral-700/50 text-neutral-500 hover:text-neutral-300'
             }`}
           >
             Raw
@@ -1755,9 +1759,9 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
             placeholder="Search in response..."
             value={bodySearch}
             onChange={(e) => setBodySearch(e.target.value)}
-            className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500/60"
+            className="flex-1 bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-brand-500/60"
           />
-          <label className="flex items-center gap-2 text-xs text-slate-400">
+          <label className="flex items-center gap-2 text-xs text-neutral-400">
             <input
               type="checkbox"
               checked={showLineNumbers}
@@ -1769,33 +1773,38 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
         </div>
       )}
 
-      <div className="flex-1 overflow-auto min-h-0 rounded-xl bg-slate-900/70 border border-slate-700/40">
+      <div className="flex-1 overflow-auto min-h-0 rounded-xl bg-neutral-900/70 border border-neutral-800">
         {tab === 'body' && renderBodyContent()}
         {tab === 'headers' && (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-neutral-800">
             {filteredHeaders.map(([k, v]) => (
-              <div key={k} className="flex gap-4 px-4 py-2 hover:bg-slate-800/40 transition-colors">
-                <span className="text-xs font-mono text-brand-300 w-48 shrink-0 truncate">{k}</span>
-                <span className="text-xs font-mono text-slate-300 break-all">{v}</span>
+              <div
+                key={k}
+                className="flex gap-4 px-4 py-2 hover:bg-neutral-800/40 transition-colors"
+              >
+                <span className="text-xs font-mono text-brand-500 w-48 shrink-0 truncate">{k}</span>
+                <span className="text-xs font-mono text-neutral-300 break-all">{v}</span>
               </div>
             ))}
             {filteredHeaders.length === 0 && searchTerm && (
-              <div className="px-4 py-8 text-center text-slate-500">
+              <div className="px-4 py-8 text-center text-neutral-500">
                 No headers match "{searchTerm}"
               </div>
             )}
           </div>
         )}
         {tab === 'cookies' && (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-neutral-800">
             {cookies.map((cookie, i) => (
-              <div key={i} className="px-4 py-3 hover:bg-slate-800/40 transition-colors">
+              <div key={i} className="px-4 py-3 hover:bg-neutral-800/40 transition-colors">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-mono text-brand-300">{cookie.name}</span>
-                  <span className="text-xs text-slate-500">=</span>
-                  <span className="text-sm font-mono text-slate-300 break-all">{cookie.value}</span>
+                  <span className="text-sm font-mono text-brand-500">{cookie.name}</span>
+                  <span className="text-xs text-neutral-500">=</span>
+                  <span className="text-sm font-mono text-neutral-300 break-all">
+                    {cookie.value}
+                  </span>
                 </div>
-                <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                <div className="flex flex-wrap gap-4 text-xs text-neutral-500">
                   {cookie.domain && <span>Domain: {cookie.domain}</span>}
                   {cookie.path && <span>Path: {cookie.path}</span>}
                   {cookie.expires && <span>Expires: {cookie.expires}</span>}
@@ -1806,14 +1815,14 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
               </div>
             ))}
             {cookies.length === 0 && (
-              <div className="px-4 py-8 text-center text-slate-500">
+              <div className="px-4 py-8 text-center text-neutral-500">
                 No cookies set in this response
               </div>
             )}
           </div>
         )}
         {tab === 'tests' && (
-          <div className="p-4 text-center text-slate-500">
+          <div className="p-4 text-center text-neutral-500">
             <div className="mb-4">
               <CheckCircle2 className="w-12 h-12 mx-auto opacity-50" />
             </div>
@@ -1823,7 +1832,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
           </div>
         )}
         {tab === 'raw' && (
-          <pre className="p-4 text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">
+          <pre className="p-4 text-xs font-mono text-neutral-300 whitespace-pre-wrap break-all">
             {response.bodyRaw}
           </pre>
         )}
@@ -1832,12 +1841,12 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
             {isHtml ? (
               <iframe
                 srcDoc={response.bodyRaw}
-                className="w-full h-full min-h-[400px] border border-slate-700 rounded-lg"
+                className="w-full h-full min-h-[400px] border border-neutral-800 rounded-lg"
                 sandbox="allow-scripts allow-same-origin"
                 title="Response Preview"
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-500">
+              <div className="flex items-center justify-center h-full text-neutral-500">
                 <div className="text-center">
                   <Eye className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>Preview only available for HTML responses</p>
@@ -1848,7 +1857,7 @@ function ResponseViewer({ response, curlCmd }: { response: ApiResponse; curlCmd:
           </div>
         )}
         {tab === 'curl' && (
-          <pre className="p-4 text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">
+          <pre className="p-4 text-xs font-mono text-neutral-300 whitespace-pre-wrap break-all">
             {curlCmd}
           </pre>
         )}
@@ -1894,36 +1903,36 @@ function HistorySidebar({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900/90 border-r border-slate-700/50 w-72 shrink-0">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/40">
-        <span className="text-sm font-semibold text-slate-200">History</span>
+    <div className="flex flex-col h-full bg-neutral-900 border-r border-neutral-800 w-72 shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+        <span className="text-sm font-semibold text-neutral-200">History</span>
         <div className="flex gap-2">
           <button
             onClick={onClear}
-            className="text-xs text-slate-500 hover:text-red-400"
+            className="text-xs text-neutral-500 hover:text-red-400"
             title="Clear all"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-300">
+          <button onClick={onClose} className="text-xs text-neutral-500 hover:text-neutral-300">
             <XCircle className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
-      <div className="px-3 py-2 border-b border-slate-700/40">
+      <div className="px-3 py-2 border-b border-neutral-800">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search history..."
-          className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500/60"
+          className="w-full bg-neutral-800/60 border border-neutral-700/50 rounded-lg px-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-brand-500/60"
         />
       </div>
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="text-xs text-slate-600 text-center py-8">No history yet</p>
+          <p className="text-xs text-neutral-600 text-center py-8">No history yet</p>
         ) : (
           filtered.map((e) => (
-            <div key={e.id} className="border-b border-slate-700/20 group">
+            <div key={e.id} className="border-b border-neutral-800 group">
               {editingId === e.id ? (
                 /* ── Inline rename input ── */
                 <div className="px-4 py-2 flex items-center gap-2">
@@ -1939,7 +1948,7 @@ function HistorySidebar({
                         setEditingName('');
                       }
                     }}
-                    className="flex-1 bg-slate-800 border border-brand-500/60 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none"
+                    className="flex-1 bg-neutral-800 border border-brand-500/60 rounded-lg px-2 py-1 text-xs text-neutral-200 focus:outline-none"
                   />
                 </div>
               ) : (
@@ -1947,7 +1956,7 @@ function HistorySidebar({
                 <div className="flex items-stretch">
                   <button
                     onClick={() => onSelect(e)}
-                    className="flex-1 text-left px-4 py-3 hover:bg-slate-800/50 transition-colors"
+                    className="flex-1 text-left px-4 py-3 hover:bg-neutral-800/50 transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span
@@ -1955,7 +1964,7 @@ function HistorySidebar({
                       >
                         {e.request.method}
                       </span>
-                      <span className="text-xs text-slate-500">{fmtDate(e.timestamp)}</span>
+                      <span className="text-xs text-neutral-500">{fmtDate(e.timestamp)}</span>
                       {e.response && (
                         <span
                           className={`text-xs font-mono ml-auto ${statusColor(e.response.status)}`}
@@ -1964,8 +1973,8 @@ function HistorySidebar({
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 truncate">{e.request.url}</p>
-                    <p className="text-[10px] text-slate-600 truncate mt-0.5">{e.name}</p>
+                    <p className="text-xs text-neutral-400 truncate">{e.request.url}</p>
+                    <p className="text-[10px] text-neutral-600 truncate mt-0.5">{e.name}</p>
                   </button>
                   {/* Per-item actions (visible on hover) */}
                   <div className="flex flex-col justify-center gap-1 pr-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1974,14 +1983,14 @@ function HistorySidebar({
                         setEditingId(e.id);
                         setEditingName(e.name);
                       }}
-                      className="p-1 rounded text-slate-600 hover:text-slate-300 transition-colors"
+                      className="p-1 rounded text-neutral-600 hover:text-neutral-300 transition-colors"
                       title="Rename"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onDelete(e.id)}
-                      className="p-1 rounded text-slate-600 hover:text-red-400 transition-colors"
+                      className="p-1 rounded text-neutral-600 hover:text-red-400 transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -2004,14 +2013,18 @@ function CodeGenerationPanel({ request }: { request: ApiRequest }) {
   const [generatedCode, setGeneratedCode] = useState('');
 
   const languages = [
-    { id: 'javascript', name: 'JavaScript', icon: '🟨' },
-    { id: 'python', name: 'Python', icon: '🐍' },
-    { id: 'curl', name: 'cURL', icon: '📡' },
-    { id: 'php', name: 'PHP', icon: '🐘' },
-    { id: 'ruby', name: 'Ruby', icon: '💎' },
-    { id: 'go', name: 'Go', icon: '🐹' },
-    { id: 'java', name: 'Java', icon: '☕' },
-    { id: 'csharp', name: 'C#', icon: '🔷' },
+    {
+      id: 'javascript',
+      name: 'JavaScript',
+      icon: <FileText className="w-4 h-4 text-yellow-500" />,
+    },
+    { id: 'python', name: 'Python', icon: <FileText className="w-4 h-4 text-blue-500" /> },
+    { id: 'curl', name: 'cURL', icon: <Terminal className="w-4 h-4 text-emerald-500" /> },
+    { id: 'php', name: 'PHP', icon: <FileText className="w-4 h-4 text-indigo-400" /> },
+    { id: 'ruby', name: 'Ruby', icon: <FileText className="w-4 h-4 text-red-500" /> },
+    { id: 'go', name: 'Go', icon: <FileText className="w-4 h-4 text-cyan-500" /> },
+    { id: 'java', name: 'Java', icon: <FileText className="w-4 h-4 text-orange-500" /> },
+    { id: 'csharp', name: 'C#', icon: <FileText className="w-4 h-4 text-purple-500" /> },
   ];
 
   useEffect(() => {
@@ -2051,7 +2064,7 @@ function CodeGenerationPanel({ request }: { request: ApiRequest }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
+        <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-3">
           Generate Code
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
@@ -2059,13 +2072,13 @@ function CodeGenerationPanel({ request }: { request: ApiRequest }) {
             <button
               key={lang.id}
               onClick={() => setSelectedLanguage(lang.id)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 transform hover:scale-[1.02] ${
                 selectedLanguage === lang.id
-                  ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-lg shadow-brand-500/25 ring-2 ring-brand-400/50'
-                  : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-700 hover:border-slate-600 hover:shadow-md'
+                  ? 'bg-brand-500 text-neutral-900 shadow-lg shadow-brand-500/25 ring-1 ring-brand-400/50'
+                  : 'bg-neutral-800/40 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 border border-neutral-800/50 hover:border-neutral-700/50'
               }`}
             >
-              <span className="text-base">{lang.icon}</span>
+              <span className="shrink-0">{lang.icon}</span>
               {lang.name}
             </button>
           ))}
@@ -2074,22 +2087,22 @@ function CodeGenerationPanel({ request }: { request: ApiRequest }) {
 
       <div className="relative">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
             Generated Code
           </p>
           <button
             onClick={copyToClipboard}
-            className="flex items-center gap-2 px-3 py-1 bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 rounded text-xs font-medium transition-all duration-200 border border-slate-700 hover:border-slate-600 hover:shadow-md"
+            className="flex items-center gap-2 px-3 py-1 bg-neutral-800/50 hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-200 rounded text-xs font-medium transition-all duration-200 border border-neutral-800 hover:border-neutral-700 hover:shadow-md"
           >
             <Copy className="w-3 h-3 transition-transform duration-200 group-hover:scale-110" />
             Copy
           </button>
         </div>
         <div className="relative group">
-          <pre className="p-4 bg-gradient-to-br from-slate-800/60 to-slate-900/60 rounded-xl text-sm font-mono text-slate-300 whitespace-pre-wrap break-all overflow-x-auto max-h-96 overflow-y-auto border border-slate-700/50 shadow-inner transition-all duration-300 group-hover:border-slate-600/50 group-hover:shadow-lg">
+          <pre className="p-4 bg-gradient-to-br from-neutral-800/60 to-neutral-900/60 rounded-xl text-sm font-mono text-neutral-300 whitespace-pre-wrap break-all overflow-x-auto max-h-96 overflow-y-auto border border-neutral-700/50 shadow-inner transition-all duration-300 group-hover:border-neutral-600/50 group-hover:shadow-lg">
             {generatedCode}
           </pre>
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-slate-900/10 rounded-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-neutral-900/10 rounded-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         </div>
       </div>
     </div>
@@ -2379,7 +2392,7 @@ export function ApiTester() {
                   <Button
                     onClick={handleSend}
                     disabled={loading || !request.url.trim()}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+                    className="bg-brand-500 hover:bg-brand-400 text-neutral-900"
                   >
                     {loading ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
@@ -2403,7 +2416,7 @@ export function ApiTester() {
                 <TabsTrigger value="params" className="relative">
                   Params
                   {activeParamsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-brand-500 text-neutral-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {activeParamsCount}
                     </span>
                   )}
@@ -2411,7 +2424,7 @@ export function ApiTester() {
                 <TabsTrigger value="headers" className="relative">
                   Headers
                   {activeHeadersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-brand-500 text-neutral-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       {activeHeadersCount}
                     </span>
                   )}
@@ -2419,7 +2432,7 @@ export function ApiTester() {
                 <TabsTrigger value="auth" className="relative">
                   Auth
                   {request.auth.type !== 'none' && (
-                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-brand-500 text-neutral-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       1
                     </span>
                   )}
@@ -2427,7 +2440,7 @@ export function ApiTester() {
                 <TabsTrigger value="body" className="relative">
                   Body
                   {request.bodyType !== 'none' && (
-                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 bg-brand-500 text-neutral-950 text-xs rounded-full h-5 w-5 flex items-center justify-center">
                       1
                     </span>
                   )}
@@ -2471,10 +2484,10 @@ export function ApiTester() {
                 <TabsContent value="curl">
                   <div className="space-y-4">
                     <div className="relative">
-                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">
+                      <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-2">
                         cURL Preview
                       </p>
-                      <pre className="p-3 bg-slate-800/60 rounded-xl text-xs font-mono text-slate-300 whitespace-pre-wrap break-all">
+                      <pre className="p-3 bg-neutral-800/60 rounded-xl text-xs font-mono text-neutral-300 whitespace-pre-wrap break-all">
                         {curlPreview}
                       </pre>
                       <Button
@@ -2487,8 +2500,8 @@ export function ApiTester() {
                         <Copy className="w-3.5 h-3.5" />
                       </Button>
                     </div>
-                    <div className="border-t border-slate-700/40 pt-4">
-                      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
+                    <div className="border-t border-neutral-700/40 pt-4">
+                      <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-3">
                         Import from cURL
                       </p>
                       <CurlImportPanel onImport={handleImportCurl} />
@@ -2517,7 +2530,7 @@ export function ApiTester() {
                     >
                       {response.status}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-neutral-500">
                       {response.headers['content-length']
                         ? `${(parseInt(response.headers['content-length']) / 1024).toFixed(1)} KB`
                         : ''}
@@ -2529,36 +2542,42 @@ export function ApiTester() {
 
             <CardContent className="flex-1 overflow-auto min-h-0 p-4 pt-0">
               {error && (
-                <div className="mb-3 flex items-start gap-2.5 p-4 bg-gradient-to-r from-red-500/10 to-red-600/5 border border-red-500/30 rounded-xl shrink-0 animate-in slide-in-from-top-2 duration-300">
-                  <div className="p-1 rounded-full bg-red-500/20">
-                    <XCircle className="w-4 h-4 text-red-400" />
+                <div className="mb-4 flex items-start gap-3 p-4 bg-red-500/5 border-l-4 border-red-500/50 rounded-r-xl shrink-0 animate-in slide-in-from-top-2 duration-300 backdrop-blur-sm">
+                  <div className="p-1.5 rounded-lg bg-red-500/10 mt-0.5">
+                    <XCircle className="w-4 h-4 text-red-500" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-red-300 mb-1">Request Failed</p>
-                    <p className="text-sm text-red-400/80">{error}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-bold text-red-400 uppercase tracking-wider">
+                        Request Failed
+                      </p>
+                    </div>
+                    <p className="text-sm text-neutral-300 font-mono break-all opacity-90">
+                      {error}
+                    </p>
                   </div>
                 </div>
               )}
 
               {!response && !loading && !error && (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3 animate-fade-in">
-                  <div className="p-4 rounded-full bg-slate-800/30 animate-pulse">
+                <div className="flex-1 flex flex-col items-center justify-center text-neutral-600 gap-3 animate-fade-in">
+                  <div className="p-4 rounded-full bg-neutral-800/30 animate-pulse">
                     <Send className="w-8 h-8 opacity-40" />
                   </div>
                   <p className="text-sm font-medium">Ready to send your request</p>
-                  <p className="text-xs text-slate-500">Enter a URL and click Send</p>
+                  <p className="text-xs text-neutral-500">Enter a URL and click Send</p>
                 </div>
               )}
 
               {loading && (
-                <div className="flex-1 flex items-center justify-center gap-3 text-slate-500 animate-fade-in">
+                <div className="flex-1 flex items-center justify-center gap-3 text-neutral-500 animate-fade-in">
                   <div className="relative">
                     <span className="w-6 h-6 border-2 border-brand-500/20 border-t-brand-500 rounded-full animate-spin" />
                     <div className="absolute inset-0 rounded-full bg-brand-500/10 animate-ping" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">Sending request...</span>
-                    <span className="text-xs text-slate-600">Please wait</span>
+                    <span className="text-xs text-neutral-600">Please wait</span>
                   </div>
                 </div>
               )}

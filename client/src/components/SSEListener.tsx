@@ -103,8 +103,8 @@ export const SSEListener: React.FC = () => {
         <Card className="h-full">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <Radio className="w-4 h-4 text-white" />
+              <div className="w-9 h-9 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center shadow-lg shadow-brand-500/10">
+                <Radio className="w-4 h-4 text-brand-500" />
               </div>
               <CardTitle className="text-base">SSE Listener</CardTitle>
             </div>
@@ -123,7 +123,10 @@ export const SSEListener: React.FC = () => {
 
             <div className="flex gap-2">
               {!isConnected ? (
-                <Button onClick={connect} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                <Button
+                  onClick={connect}
+                  className="flex-1 bg-brand-500 hover:bg-brand-400 text-neutral-900"
+                >
                   <PlugZap className="w-4 h-4 mr-1.5" />
                   Connect
                 </Button>
@@ -149,7 +152,7 @@ export const SSEListener: React.FC = () => {
               </Label>
             </div>
 
-            <div className="p-3 bg-slate-800/40 rounded-lg border border-slate-700/50 space-y-1 text-sm">
+            <div className="p-3 bg-neutral-800/60 rounded-lg border border-neutral-700/50 space-y-1 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Status</span>
                 <Badge variant={isConnected ? 'default' : 'secondary'} className="text-xs">
@@ -179,7 +182,7 @@ export const SSEListener: React.FC = () => {
             <CardTitle className="text-base">Events</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 min-h-0">
-            <div className="h-96 overflow-auto bg-slate-950/40 border border-slate-800/50 rounded-lg p-3">
+            <div className="h-96 overflow-auto bg-neutral-950/40 border border-neutral-800 rounded-lg p-3">
               {events.length === 0 ? (
                 <div className="text-muted-foreground text-center py-8 text-sm">
                   {isConnected ? 'Waiting for events...' : 'No events received yet'}
@@ -189,7 +192,7 @@ export const SSEListener: React.FC = () => {
                   {events.map((event, index) => (
                     <div
                       key={`${event.id}-${index}`}
-                      className="bg-slate-800/40 border border-slate-700/30 p-3 rounded-lg"
+                      className="bg-neutral-800/40 border border-neutral-700/30 p-3 rounded-lg"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">

@@ -1877,6 +1877,16 @@ clipSyncWss.on('connection', (ws, req) => {
         reply({ type: 'error', message: 'Invalid room code. Use a 6-character code.' });
         return;
       }
+      
+      // Accept persisted device ID from client (for tab switching & reconnection)
+      // If client sends deviceId, use it; otherwise generate a new one
+      const clientDeviceId = msg.deviceId ? String(msg.deviceId).slice(0, 100) : null;
+      if (clientDeviceId && /^[a-z0-9_-]+$/i.test(clientDeviceId)) {
+        deviceId = clientDeviceId;
+      } else {
+        deviceId = uuidv4();
+      }
+      
       deviceName = String(msg.deviceName ?? 'Device')
         .replace(/[<>"&]/g, '')
         .slice(0, 50);
@@ -1916,16 +1926,20 @@ clipSyncWss.on('connection', (ws, req) => {
       }
 
       // Rate limiting: track join attempts per IP (anti-brute-force)
+      // EXCEPTION: Owner reconnecting is always allowed (no rate limit)
       const clientIp = ip;
-      if (!r.joinAttempts) r.joinAttempts = new Map();
-      const attempts = r.joinAttempts.get(clientIp) ?? [];
-      const recentAttempts = attempts.filter((t) => now - t < 60_000); // keep last 60s
-      if (recentAttempts.length >= 5) {
-        reply({ type: 'error', message: 'Too many join attempts. Try again in 60 seconds.' });
-        return;
+      const isOwnerReconnect = r.ownerDeviceId && r.ownerDeviceId === deviceId;
+      if (!isOwnerReconnect) {
+        if (!r.joinAttempts) r.joinAttempts = new Map();
+        const attempts = r.joinAttempts.get(clientIp) ?? [];
+        const recentAttempts = attempts.filter((t) => now - t < 60_000); // keep last 60s
+        if (recentAttempts.length >= 5) {
+          reply({ type: 'error', message: 'Too many join attempts. Try again in 60 seconds.' });
+          return;
+        }
+        recentAttempts.push(now);
+        r.joinAttempts.set(clientIp, recentAttempts);
       }
-      recentAttempts.push(now);
-      r.joinAttempts.set(clientIp, recentAttempts);
       if (r.peers.size >= CLIPSYNC_MAX_PEERS) {
         reply({ type: 'error', message: `Room is full (max ${CLIPSYNC_MAX_PEERS} devices).` });
         return;

@@ -33,7 +33,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="pointer-events-auto bg-slate-900/95 text-white px-4 py-2 rounded-md shadow-lg border border-slate-700/60 w-max max-w-xs"
+            className="pointer-events-auto bg-neutral-900 text-white px-4 py-2 rounded-md shadow-lg border border-neutral-800 w-max max-w-xs"
           >
             {t.message}
           </div>

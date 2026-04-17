@@ -4,9 +4,7 @@ interface SkeletonProps {
   className?: string;
 }
 
-export const Skeleton: React.FC<SkeletonProps> = ({
-  className = 'h-4 bg-slate-700/40 rounded',
-}) => {
+export const Skeleton: React.FC<SkeletonProps> = ({ className = 'h-4 bg-neutral-800 rounded' }) => {
   return <div className={`animate-pulse ${className}`} />;
 };
 
