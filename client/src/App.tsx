@@ -10,6 +10,7 @@ import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { NotFound } from './components/NotFound.js';
 import { API_BASE } from './hooks/useTerminalSession.js';
 import React from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Key,
@@ -41,20 +42,6 @@ import { Spotlight } from './components/ui/spotlight-new.js';
 import Footer from './components/Footer.js';
 
 const EmailDesigner = React.lazy(() => import('./components/EmailDesigner').then(m => ({ default: m.EmailDesigner })));
-
-type Tab =
-  | 'terminal'
-  | 'api'
-  | 'dev-tools'
-  | 'network'
-  | 'encoders'
-  | 'webhook'
-  | 'guide'
-  | 'clipsync'
-  | 'tempmail'
-  | 'rate-limit'
-  | 'url-shortener'
-  | 'email-designer';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-24 text-neutral-500">
@@ -193,14 +180,7 @@ function NetworkToolsTabs() {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>(() => {
-    // Auto-select ClipSync if the URL hash contains a room link
-    if (typeof window !== 'undefined') {
-      if (/^#clipsync\/[a-z0-9]{6,12}\//.test(window.location.hash)) return 'clipsync';
-      if (window.matchMedia('(max-width: 639px)').matches) return 'api';
-    }
-    return 'terminal';
-  });
+  const location = useLocation();
   const [osImages, setOsImages] = useState<OsImage[]>([]);
 
   // Fetch OS images from backend (falls back gracefully)
@@ -255,69 +235,60 @@ export default function App() {
       });
   }, []);
 
+  // Handle ClipSync room links in hash (legacy support)
+  useEffect(() => {
+    if (/^#clipsync\/[a-z0-9]{6,12}\//.test(window.location.hash)) {
+      window.location.href = window.location.hash.replace('#', '/');
+    }
+  }, []);
+
   return (
     <ErrorBoundary>
       <ToastProvider>
         <div className="flex relative flex-col overflow-x-hidden w-full h-auto bg-neutral-950">
           <Analytics />
-          <Navbar activeTab={tab} onTabChange={setTab} />
+          <Navbar />
           <Spotlight />
+          
           {/* Subtle radial gradient backdrop */}
           <div className="pointer-events-none fixed inset-0 -z-10">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-brand-500/5 rounded-full blur-3xl" />
             <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-brand-500/3 rounded-full blur-3xl" />
-            {tab === 'webhook' && (
+            {location.pathname === '/webhook' && (
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-brand-500/3 rounded-full blur-3xl" />
             )}
           </div>
 
           <main className="flex-1 flex mt-10 flex-col min-h-0 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 py-5">
             <div className="flex-1 min-h-0 overflow-hidden">
-              {tab === 'terminal' ? (
-                <TerminalPane osImages={osImages} />
-              ) : tab === 'api' ? (
-                <ApiTester />
-              ) : tab === 'dev-tools' ? (
-                <DevToolsTabs />
-              ) : tab === 'network' ? (
-                <NetworkToolsTabs />
-              ) : tab === 'encoders' ? (
-                <React.Suspense
-                  fallback={
-                    <div className="flex items-center justify-center h-64">
-                      <Spinner />
-                    </div>
-                  }
-                >
-                  <EncoderDecoder />
-                </React.Suspense>
-              ) : tab === 'webhook' ? (
-                <WebhookDumper />
-              ) : tab === 'guide' ? (
-                <Guide />
-              ) : tab === 'clipsync' ? (
-                <ClipSync />
-              ) : tab === 'url-shortener' ? (
-                <UrlShortener />
-              ) : tab === 'rate-limit' ? (
-                <RateLimitTester />
-              ) : tab === 'email-designer' ? (
-                <React.Suspense
-                  fallback={
-                    <div className="flex items-center justify-center h-64">
-                      <Spinner />
-                    </div>
-                  }
-                >
-                  <EmailDesigner />
-                </React.Suspense>
-              ) : (
-                <NotFound />
-              )}
+              <Routes>
+                <Route path="/" element={<TerminalPane osImages={osImages} />} />
+                <Route path="/api-tester" element={<ApiTester />} />
+                <Route path="/dev-tools" element={<DevToolsTabs />} />
+                <Route path="/network" element={<NetworkToolsTabs />} />
+                <Route path="/encoders" element={
+                  <React.Suspense fallback={<LoadingFallback />}>
+                    <EncoderDecoder />
+                  </React.Suspense>
+                } />
+                <Route path="/webhook" element={<WebhookDumper />} />
+                <Route path="/guide" element={<Guide />} />
+                <Route path="/clip-sync" element={<ClipSync />} />
+                <Route path="/clip-sync/:roomId" element={<ClipSync />} />
+                <Route path="/clip-sync/:roomId/:roomSecret" element={<ClipSync />} />
+                <Route path="/url-shortener" element={<UrlShortener />} />
+                <Route path="/rate-limit" element={<RateLimitTester />} />
+                <Route path="/email-designer" element={
+                  <React.Suspense fallback={<LoadingFallback />}>
+                    <EmailDesigner />
+                  </React.Suspense>
+                } />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
             </div>
           </main>
 
-          <Footer onTabChange={setTab} />
+          <Footer />
         </div>
       </ToastProvider>
     </ErrorBoundary>

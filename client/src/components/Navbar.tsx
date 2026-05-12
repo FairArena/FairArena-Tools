@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Terminal,
   Globe,
@@ -29,47 +30,55 @@ type TabId =
   | 'url-shortener'
   | 'email-designer';
 
-interface NavbarProps {
-  activeTab: TabId;
-  onTabChange: (tab: TabId) => void;
-}
-
-const NAV_TABS: {
+interface NavTab {
   id: TabId;
   label: string;
   icon: any;
-}[] = [
-  { id: 'terminal', label: 'Terminal', icon: Terminal },
-  { id: 'api', label: 'API Tester', icon: Globe },
-  { id: 'dev-tools', label: 'Dev Tools', icon: Code2 },
-  { id: 'network', label: 'Network', icon: Network },
-  { id: 'encoders', label: 'Encoders', icon: Binary },
-  { id: 'rate-limit', label: 'Rate Limit', icon: Gauge },
-  { id: 'webhook', label: 'Webhooks', icon: Webhook },
-  { id: 'url-shortener', label: 'URL Shortener', icon: Link2 },
-  { id: 'clipsync', label: 'ClipSync', icon: Link2 },
-  { id: 'tempmail', label: 'TempMail', icon: Mail },
-  { id: 'guide', label: 'Guide', icon: BookOpen },
-  { id: 'email-designer', label: 'Email Designer', icon: Mail },
+  path: string;
+}
+
+const NAV_TABS: NavTab[] = [
+  { id: 'terminal', label: 'Terminal', icon: Terminal, path: '/' },
+  { id: 'api', label: 'API Tester', icon: Globe, path: '/api-tester' },
+  { id: 'dev-tools', label: 'Dev Tools', icon: Code2, path: '/dev-tools' },
+  { id: 'network', label: 'Network', icon: Network, path: '/network' },
+  { id: 'encoders', label: 'Encoders', icon: Binary, path: '/encoders' },
+  { id: 'rate-limit', label: 'Rate Limit', icon: Gauge, path: '/rate-limit' },
+  { id: 'webhook', label: 'Webhooks', icon: Webhook, path: '/webhook' },
+  { id: 'url-shortener', label: 'URL Shortener', icon: Link2, path: '/url-shortener' },
+  { id: 'clipsync', label: 'ClipSync', icon: Link2, path: '/clip-sync' },
+  { id: 'tempmail', label: 'TempMail', icon: Mail, path: 'https://tempmail.fairarena.app' },
+  { id: 'guide', label: 'Guide', icon: BookOpen, path: '/guide' },
+  { id: 'email-designer', label: 'Email Designer', icon: Mail, path: '/email-designer' },
 ];
 
-export function Navbar({ activeTab, onTabChange }: NavbarProps) {
+export function Navbar() {
+  const location = useLocation();
   const [hoveredTab, setHoveredTab] = useState<TabId | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   const navRef = useRef<HTMLDivElement | null>(null);
-  const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>(
-    {} as Record<TabId, HTMLButtonElement | null>,
-  );
+  const tabRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
 
   const [indicator, setIndicator] = useState({
     left: 0,
     width: 0,
+    opacity: 0,
   });
 
-  const currentTab = hoveredTab || activeTab;
+  // Determine active tab based on path
+  const activeTabId = NAV_TABS.find(tab => 
+    tab.path !== '/' && location.pathname.startsWith(tab.path)
+  )?.id || (location.pathname === '/' ? 'terminal' : null);
 
-  useEffect(() => {
+  const currentTab = hoveredTab || activeTabId;
+
+  const updateIndicator = useCallback(() => {
+    if (!currentTab) {
+      setIndicator(prev => ({ ...prev, opacity: 0 }));
+      return;
+    }
+
     const node = tabRefs.current[currentTab];
     const navNode = navRef.current;
 
@@ -78,25 +87,39 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
       const navRect = navNode.getBoundingClientRect();
 
       setIndicator({
-        left: rect.left - navRect.left,
+        left: rect.left - navRect.left + navNode.scrollLeft,
         width: rect.width,
+        opacity: 1,
       });
+    } else {
+      setIndicator(prev => ({ ...prev, opacity: 0 }));
     }
   }, [currentTab]);
 
+  useEffect(() => {
+    // Small timeout to ensure layout is ready
+    const timer = setTimeout(updateIndicator, 50);
+    return () => clearTimeout(timer);
+  }, [updateIndicator]);
+
+  useEffect(() => {
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [updateIndicator]);
+
   return (
     <>
-      {/* ================= DESKTOP NAV (UNCHANGED) ================= */}
+      {/* ================= DESKTOP NAV ================= */}
       <header className="sticky flex top-5 z-50 hidden lg:flex w-full justify-center px-4">
         <div className="w-[95%] max-w-screen-2xl rounded-full border-2 border-neutral-800 px-6 py-2 bg-neutral-900 h-auto mx-auto flex gap-6 items-center">
           {/* Logo */}
-          <div className=" flex h-[40px] items-center shrink-0">
+          <Link to="/" className="flex h-[40px] items-center shrink-0">
             <img
               src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
               alt="logo"
               className="h-[100px] w-auto object-contain"
             />
-          </div>
+          </Link>
 
           {/* Nav Tabs */}
           <div
@@ -105,48 +128,55 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
           >
             {/* Sliding Line */}
             <motion.div
-              className="absolute bottom-0 h-[2px] bg-[#D9FF00] rounded-full"
+              className="absolute bottom-0 h-[2px] bg-[#D9FF00] rounded-full z-10"
+              initial={false}
               animate={{
                 left: indicator.left,
                 width: indicator.width,
+                opacity: indicator.opacity,
               }}
               transition={{
                 type: 'spring',
-                stiffness: 160, // slower
-                damping: 35,
-                mass: 1.2,
+                stiffness: 200,
+                damping: 25,
+                mass: 1,
               }}
             />
 
-            {NAV_TABS.map(({ id, label, icon: Icon }) => {
-              const isActive = activeTab === id;
+            {NAV_TABS.map(({ id, label, icon: Icon, path }) => {
+              const isActive = activeTabId === id;
+              const isExternal = path.startsWith('http');
+
+              if (isExternal) {
+                return (
+                  <a
+                    key={id}
+                    href={path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative flex items-center gap-2 px-3 py-2 text-xs rounded-md text-neutral-400 hover:text-white transition-colors"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{label}</span>
+                  </a>
+                );
+              }
 
               return (
-                <motion.button
+                <Link
                   key={id}
+                  to={path}
                   ref={(el) => {
                     tabRefs.current[id] = el;
                   }}
                   onMouseEnter={() => setHoveredTab(id)}
                   onMouseLeave={() => setHoveredTab(null)}
-                  onClick={() => {
-                    if (id === 'tempmail') {
-                      window.open(
-                        'https://tempmail.fairarena.app',
-                        '_blank',
-                        'noopener,noreferrer',
-                      );
-                      return;
-                    }
-                    onTabChange(id);
-                  }}
-                  whileTap={{ scale: 0.95 }}
-                  className={`relative flex items-center gap-2 px-3 py-2 text-xs rounded-md
+                  className={`relative flex items-center gap-2 px-3 py-2 text-xs rounded-md transition-colors
                   ${isActive ? 'text-[#D9FF00]' : 'text-neutral-400 hover:text-white'}`}
                 >
                   <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{label}</span>
-                </motion.button>
+                </Link>
               );
             })}
           </div>
@@ -157,10 +187,13 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
       <header className="sticky top-3 z-50 px-3 flex justify-center lg:hidden">
         <div className="w-[80%] flex overflow-y-hidden h-[50px] items-center justify-between bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2">
           {/* Logo */}
-          <img
-            src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
-            className="h-[80px]"
-          />
+          <Link to="/">
+            <img
+              src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
+              className="h-[80px]"
+              alt="Logo"
+            />
+          </Link>
 
           {/* Menu Button */}
           <button onClick={() => setIsOpen(true)}>
@@ -202,26 +235,37 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
               </div>
 
               {/* Tabs */}
-              {NAV_TABS.map(({ id, label, icon: Icon }) => {
-                const isActive = activeTab === id;
+              {NAV_TABS.map(({ id, label, icon: Icon, path }) => {
+                const isActive = activeTabId === id;
+                const isExternal = path.startsWith('http');
+
+                if (isExternal) {
+                  return (
+                    <a
+                      key={id}
+                      href={path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-3 py-3 rounded-md text-sm text-neutral-400"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      <Icon className="w-5 h-5" />
+                      {label}
+                    </a>
+                  );
+                }
 
                 return (
-                  <button
+                  <Link
                     key={id}
-                    onClick={() => {
-                      if (id === 'tempmail') {
-                        window.open('https://tempmail.fairarena.app', '_blank');
-                        return;
-                      }
-                      onTabChange(id);
-                      setIsOpen(false);
-                    }}
+                    to={path}
+                    onClick={() => setIsOpen(false)}
                     className={`flex items-center gap-3 px-3 py-3 rounded-md text-sm
                     ${isActive ? 'text-[#D9FF00] bg-neutral-800' : 'text-neutral-400'}`}
                   >
                     <Icon className="w-5 h-5" />
                     {label}
-                  </button>
+                  </Link>
                 );
               })}
             </motion.div>

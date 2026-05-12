@@ -288,18 +288,12 @@ function downloadBase64File(content: string, filename: string, mimeType: string)
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-function getRoomUrl(roomId: string): string {
-  const base = window.location.origin + window.location.pathname;
-  // SECURITY: Never include encryption key in URL - only PIN code
-  return `${base}#clipsync/${roomId}`;
-}
+import { useParams, useNavigate } from 'react-router-dom';
 
-/**
- * Shareable PIN code only (no encryption key).
- * SECURITY: Keys are never included in shareable links.
- */
-function makeInviteCode(roomId: string): string {
-  return roomId.toUpperCase();
+function getRoomUrl(roomId: string): string {
+  const base = window.location.origin;
+  // SECURITY: Never include encryption key in URL - only PIN code
+  return `${base}/clip-sync/${roomId}`;
 }
 
 function normalizeRoomCode(raw: unknown): string {
@@ -307,12 +301,6 @@ function normalizeRoomCode(raw: unknown): string {
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '')
     .slice(0, 6);
-}
-
-function parseRoomHash(hash: string): { roomId: string } | null {
-  const m = hash.match(/^#clipsync\/([a-zA-Z0-9]{6})$/);
-  if (!m) return null;
-  return { roomId: m[1].toLowerCase() };
 }
 
 /**
@@ -408,6 +396,9 @@ function clearRoomSession(): void {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ClipSync() {
+  const { roomId: routeRoomId } = useParams();
+  const navigate = useNavigate();
+
   // Initialize device ID from localStorage on first render
   const [persistedDeviceId] = useState(() => getOrCreateDeviceId());
   const [phase, setPhase] = useState<Phase>('idle');
@@ -488,17 +479,13 @@ export function ClipSync() {
     };
   }, [showQR, roomId, keyB64]);
 
-  // Auto-join from URL hash on mount (PIN-only mode)
+  // Auto-join from URL params on mount
   useEffect(() => {
-    const parsed = parseRoomHash(window.location.hash);
-    if (parsed) {
-      // SECURITY: All URLs are PIN-only; no embedded keys
-      setJoinInput(parsed.roomId.toUpperCase());
-      connectToRoom(parsed.roomId, null, null);
+    if (routeRoomId && routeRoomId.length === 6) {
+      setJoinInput(routeRoomId.toUpperCase());
+      connectToRoom(routeRoomId, null, null);
     }
-    // connectToRoom is defined inside render scope — safe to pass [] since it only runs on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [routeRoomId]);
 
   // Auto-restore from stored session on mount (for tab switching)
   useEffect(() => {
@@ -588,7 +575,7 @@ export function ClipSync() {
           // Already have the AES key (joined via invite code / URL)
           setPhase('connected');
           saveRoomSession(roomCode, kb64 ?? '', []);
-          history.replaceState(null, '', `#clipsync/${roomCode}`);
+          history.replaceState(null, '', `/clip-sync/${roomCode}`);
         } else {
           // No key — initiate ECDH key request
           setPhase('key_exchange');
@@ -699,7 +686,7 @@ export function ClipSync() {
             // KEEP ecdhPairRef for future key rotations — don't set to null
             saveRoomSession(roomIdRef.current, kb64New, items);
             setPhase('connected');
-            history.replaceState(null, '', `#clipsync/${roomIdRef.current}`);
+            history.replaceState(null, '', `/clip-sync/${roomIdRef.current}`);
           } catch {
             setErrorMsg('Key exchange failed — the room host may have gone offline. Try again.');
             setPhase('error');
@@ -768,7 +755,7 @@ export function ClipSync() {
         if (newCode) {
           setRoomId(newCode);
           roomIdRef.current = newCode;
-          history.replaceState(null, '', `#clipsync/${newCode}`);
+          history.replaceState(null, '', `/clip-sync/${newCode}`);
           setJoinInput(newCode);
         }
         setDisplayCode(newCode);

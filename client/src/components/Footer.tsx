@@ -16,12 +16,9 @@ import {
   BookOpen,
   Gauge,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-interface FooterProps {
-  onTabChange?: (tab: any) => void;
-}
-
-function Footer({ onTabChange }: FooterProps) {
+function Footer() {
   const isDark = true;
 
   const configuredFrontendUrl = (import.meta.env.VITE_FRONTEND_URL || '').replace(/\/$/, '');
@@ -45,11 +42,13 @@ function Footer({ onTabChange }: FooterProps) {
         {/* Brand + Social */}
         <div className="flex flex-col gap-6">
           <div className="relative -ml-4">
-            <img
-              src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
-              className="h-24 w-auto object-contain"
-              alt="FairArena Logo"
-            />
+            <Link to="/">
+              <img
+                src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
+                className="h-24 w-auto object-contain"
+                alt="FairArena Logo"
+              />
+            </Link>
           </div>
 
           <p className="text-sm max-w-xs leading-relaxed">
@@ -136,22 +135,20 @@ function Footer({ onTabChange }: FooterProps) {
           </h3>
           <ul className="mt-4 space-y-3 text-sm">
             {[
-              { id: 'terminal', label: 'Interactive Terminal', icon: Terminal },
-              { id: 'api', label: 'API Tester', icon: Globe },
-              { id: 'webhook', label: 'Webhook Dumper', icon: Webhook },
-              { id: 'network', label: 'Network Inspector', icon: Network },
-              { id: 'rate-limit', label: 'Rate Limit Tester', icon: Gauge },
+              { path: '/', label: 'Interactive Terminal', icon: Terminal },
+              { path: '/api-tester', label: 'API Tester', icon: Globe },
+              { path: '/webhook', label: 'Webhook Dumper', icon: Webhook },
+              { path: '/network', label: 'Network Inspector', icon: Network },
+              { path: '/rate-limit', label: 'Rate Limit Tester', icon: Gauge },
             ].map((item) => (
-              <li
-                key={item.id}
-                onClick={() => onTabChange?.(item.id)}
-                className={`
-                    cursor-pointer flex items-center gap-2 transition-colors
-                    ${isDark ? 'hover:text-[#DDFF00]' : 'hover:text-[#556000]'}
-                  `}
-              >
-                <item.icon className="w-4 h-4 opacity-70" />
-                <span>{item.label}</span>
+              <li key={item.path}>
+                <Link
+                  to={item.path}
+                  className={`flex items-center gap-2 transition-colors ${isDark ? 'hover:text-[#DDFF00]' : 'hover:text-[#556000]'}`}
+                >
+                  <item.icon className="w-4 h-4 opacity-70" />
+                  <span>{item.label}</span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -164,29 +161,36 @@ function Footer({ onTabChange }: FooterProps) {
           </h3>
           <ul className="mt-4 space-y-3 text-sm">
             {[
-              { id: 'dev-tools', label: 'Dev Utilities', icon: Code2 },
-              { id: 'encoders', label: 'Encoders & Decoders', icon: Binary },
-              { id: 'clipsync', label: 'ClipSync Sharing', icon: Link2 },
-              { id: 'tempmail', label: 'TempMail Service', icon: Mail },
-              { id: 'guide', label: 'Getting Started', icon: BookOpen },
+              { path: '/dev-tools', label: 'Dev Utilities', icon: Code2 },
+              { path: '/encoders', label: 'Encoders & Decoders', icon: Binary },
+              { path: '/clip-sync', label: 'ClipSync Sharing', icon: Link2 },
+              { path: 'https://tempmail.fairarena.app', label: 'TempMail Service', icon: Mail, isExternal: true },
+              { path: '/guide', label: 'Getting Started', icon: BookOpen },
+              { path: '/email-designer', label: 'Email Designer', icon: Mail },
             ].map((item) => (
-              <li
-                key={item.id}
-                onClick={() => {
-                  if (item.id === 'tempmail') {
-                    window.open('https://tempmail.fairarena.app', '_blank');
-                    return;
-                  }
-                  onTabChange?.(item.id);
-                }}
-                className={`
-                  cursor-pointer flex items-center gap-2 transition-colors
-                  ${isDark ? 'hover:text-[#DDFF00]' : 'hover:text-[#556000]'}
-                `}
-              >
-                <item.icon className="w-4 h-4 opacity-70" />
-                <span>{item.label}</span>
-              </li>
+              item.isExternal ? (
+                <li key={item.path}>
+                  <a
+                    href={item.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-2 transition-colors ${isDark ? 'hover:text-[#DDFF00]' : 'hover:text-[#556000]'}`}
+                  >
+                    <item.icon className="w-4 h-4 opacity-70" />
+                    <span>{item.label}</span>
+                  </a>
+                </li>
+              ) : (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`flex items-center gap-2 transition-colors ${isDark ? 'hover:text-[#DDFF00]' : 'hover:text-[#556000]'}`}
+                  >
+                    <item.icon className="w-4 h-4 opacity-70" />
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              )
             ))}
           </ul>
         </div>
