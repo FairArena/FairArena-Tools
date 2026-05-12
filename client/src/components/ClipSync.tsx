@@ -314,11 +314,12 @@ function parseJoinInput(
   const s = raw.trim();
   if (!s) return null;
 
-  // Full URL with hash fragment
+  // Full URL - check path for roomId
   try {
     const u = new URL(s);
-    const parsed = parseRoomHash(u.hash);
-    if (parsed) return parsed;
+    const parts = u.pathname.split('/');
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && lastPart.length === 6) return { roomId: lastPart };
   } catch {
     /* not a URL */
   }
@@ -397,7 +398,6 @@ function clearRoomSession(): void {
 
 export function ClipSync() {
   const { roomId: routeRoomId } = useParams();
-  const navigate = useNavigate();
 
   // Initialize device ID from localStorage on first render
   const [persistedDeviceId] = useState(() => getOrCreateDeviceId());
@@ -1171,7 +1171,7 @@ export function ClipSync() {
 
   const copyInviteCode = async () => {
     // SECURITY: Only copy the PIN, never the key
-    await navigator.clipboard.writeText(makeInviteCode(roomId));
+    await navigator.clipboard.writeText(roomId);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2500);
     toast.show('PIN copied to clipboard');
@@ -1450,7 +1450,7 @@ export function ClipSync() {
   // ── Connected room screen ───────────────────────────────────────────────────
 
   const roomUrl = getRoomUrl(roomId);
-  const inviteCode = makeInviteCode(roomId);
+  const inviteCode = roomId;
 
   // Show dedicated pending approval screen instead of normal room UI
   if (phase === 'pending') {

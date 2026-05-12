@@ -1,6 +1,6 @@
-import type { CanvasTab } from './types';
+import type { Block, EmailSettings } from './types';
 
-export const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: EmailSettings = {
   bodyBg: '#f6f9fc',
   containerBg: '#ffffff',
   maxWidth: '600px',
@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
   borderRadius: '8px',
 };
 
-export const DEFAULT_BLOCKS = [
+export const DEFAULT_BLOCKS: Block[] = [
   {
     id: '1',
     type: 'Image',
@@ -38,7 +38,7 @@ export const DEFAULT_BLOCKS = [
   }
 ];
 
-export const EMAIL_TEMPLATES: Omit<CanvasTab, 'id' | 'createdAt' | 'updatedAt'>[] = [
+export const EMAIL_TEMPLATES: { name: string; settings: EmailSettings; blocks: Block[] }[] = [
   {
     name: 'Welcome Email',
     settings: { ...DEFAULT_SETTINGS },

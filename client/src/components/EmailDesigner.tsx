@@ -1,25 +1,44 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Html, Head, Body, Container, Section, Text, Heading, Button, Img, Hr, Link, Column, Row
-} from '@react-email/components';
-import { render } from '@react-email/render';
-import reactElementToJSXString from 'react-element-to-jsx-string';
-import {
-  Type, Image as ImageIcon, MousePointerClick, Minus, Settings2, Code2, Eye, Trash2,
-  LayoutTemplate, GripVertical, Palette, Layout, Type as TypeIcon, BoxSelect, Monitor,
-  Smartphone, Moon, Sun, Copy, Download, Link2, Space, Globe, Plus, Undo2, Redo2,
-  RotateCcw, Columns, Maximize2, X, Save, FileText, ChevronRight
-} from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { closestCenter, defaultDropAnimationSideEffects, DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import {
+  ChevronRight,
+  Code2,
+  Columns,
+  Copy, Download,
+  Eye,
+  FileText,
+  Globe,
+  GripVertical,
+  Image as ImageIcon,
+  Layout,
+  LayoutTemplate,
+  Link2,
+  Maximize2,
+  Minus,
+  Monitor,
+  Moon,
+  MousePointerClick,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Smartphone,
+  Space,
+  Sun,
+  Trash2,
+  Type,
+  Type as TypeIcon,
+  Undo2,
+  X
+} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark as syntaxTheme } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-import type { Block, BlockType, EmailSettings, CanvasTab, HistoryState, ColumnDef } from './email-designer/types';
-import { DEFAULT_SETTINGS, EMAIL_TEMPLATES, DEFAULT_BLOCKS } from './email-designer/templates';
+import { DEFAULT_BLOCKS, DEFAULT_SETTINGS, EMAIL_TEMPLATES } from './email-designer/templates';
+import type { Block, BlockType, CanvasTab, EmailSettings, HistoryState } from './email-designer/types';
 
 // --- Components ---
 
@@ -46,16 +65,16 @@ function SidebarDraggableItem({ type }: { type: BlockType }) {
 }
 
 function SortableLayerItem({ block, isSelected, onSelect, onDelete }: { block: Block, isSelected: boolean, onSelect: () => void, onDelete: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
-    id: `layer-${block.id}`, 
-    data: { isLayerItem: true, block } 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `layer-${block.id}`,
+    data: { isLayerItem: true, block }
   });
-  
+
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : 1 };
 
   return (
-    <div 
-      ref={setNodeRef} 
+    <div
+      ref={setNodeRef}
       style={style}
       className={`flex items-center justify-between p-2 mb-1 rounded border text-xs transition-all cursor-pointer group
         ${isSelected ? 'border-brand-500 bg-brand-500/10 text-brand-400' : 'border-neutral-800 hover:border-neutral-700 bg-neutral-900 text-neutral-400'}
@@ -69,8 +88,8 @@ function SortableLayerItem({ block, isSelected, onSelect, onDelete }: { block: B
         </div>
         <span className="truncate font-medium">{block.type}</span>
       </div>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onDelete(); }} 
+      <button
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
         className="p-1 opacity-0 group-hover:opacity-100 hover:text-red-400 text-neutral-600 transition-all"
       >
         <Trash2 className="w-3 h-3" />
@@ -79,13 +98,13 @@ function SortableLayerItem({ block, isSelected, onSelect, onDelete }: { block: B
   );
 }
 
-function EditableBlockContent({ 
-  block, isSelected, selectedBlockId, onSelect, themeMode, onUpdateContent 
-}: { 
-  block: Block, isSelected: boolean, selectedBlockId: string | null, onSelect: (id: string) => void, themeMode: string, onUpdateContent: (id: string, content: string) => void 
+function EditableBlockContent({
+  block, isSelected, selectedBlockId, onSelect, themeMode, onUpdateContent
+}: {
+  block: Block, isSelected: boolean, selectedBlockId: string | null, onSelect: (id: string) => void, themeMode: string, onUpdateContent: (id: string, content: string) => void
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const editRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<any>(null);
 
   let computedStyle = { ...block.style };
   if (themeMode === 'dark') {
@@ -141,7 +160,7 @@ function EditableBlockContent({
     case 'Text': return <p {...commonProps} dangerouslySetInnerHTML={{ __html: block.content || '' }} className={`${commonProps.className} ${hoverClass}`} />;
     case 'Link': return <a href={block.href || '#'} {...commonProps} onClick={(e) => { e.preventDefault(); commonProps.onClick(e); }} dangerouslySetInnerHTML={{ __html: block.content || '' }} className={`${commonProps.className} ${hoverClass}`} />;
     case 'Spacer': return <div {...commonProps} style={{ height: computedStyle.height || '20px', width: '100%', ...computedStyle }} className={`${commonProps.className} ${hoverClass}`} />;
-    case 'Button': 
+    case 'Button':
       return (
         <div style={{ textAlign: (computedStyle as any).textAlign || 'center', width: '100%' }} onClick={handleClick} className={`${commonProps.className} ${hoverClass}`}>
           <a href={block.href || '#'} {...commonProps} onClick={(e) => { e.preventDefault(); commonProps.onClick(e); }} dangerouslySetInnerHTML={{ __html: block.content || '' }} />
@@ -155,14 +174,14 @@ function EditableBlockContent({
           {block.columns?.map(col => (
             <div key={col.id} style={{ width: `${col.width}%` }} className="flex flex-col relative group/col">
               {col.blocks.map(b => (
-                <EditableBlockContent 
-                  key={b.id} 
-                  block={b} 
-                  isSelected={selectedBlockId === b.id} 
+                <EditableBlockContent
+                  key={b.id}
+                  block={b}
+                  isSelected={selectedBlockId === b.id}
                   selectedBlockId={selectedBlockId}
-                  onSelect={onSelect} 
-                  themeMode={themeMode} 
-                  onUpdateContent={onUpdateContent} 
+                  onSelect={onSelect}
+                  themeMode={themeMode}
+                  onUpdateContent={onUpdateContent}
                 />
               ))}
               {col.blocks.length === 0 && <div className="p-4 border border-dashed border-neutral-300 rounded text-[10px] text-center text-neutral-400 uppercase font-bold">Column</div>}
@@ -174,27 +193,27 @@ function EditableBlockContent({
   }
 }
 
-function SortableCanvasItem({ 
-  block, isSelected, selectedBlockId, onSelect, themeMode, onUpdateContent, onDelete 
-}: { 
-  block: Block, isSelected: boolean, selectedBlockId: string | null, onSelect: (id: string) => void, themeMode: string, onUpdateContent: (id: string, content: string) => void, onDelete: (id: string) => void 
+function SortableCanvasItem({
+  block, isSelected, selectedBlockId, onSelect, themeMode, onUpdateContent
+}: {
+  block: Block, isSelected: boolean, selectedBlockId: string | null, onSelect: (id: string) => void, themeMode: string, onUpdateContent: (id: string, content: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `canvas-${block.id}`,
     data: { isCanvasItem: true, block }
   });
 
-  const style = { 
-    transform: CSS.Transform.toString(transform), 
-    transition, 
-    zIndex: isDragging ? 50 : 1, 
-    opacity: isDragging ? 0.4 : 1 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.4 : 1
   };
-  
+
   const wrapperClass = `relative group transition-all rounded-sm outline-offset-2 ${isSelected ? 'z-10' : ''}`;
 
   return (
-    <div 
+    <div
       ref={setNodeRef}
       style={style}
       {...attributes}
@@ -206,13 +225,13 @@ function SortableCanvasItem({
           <LayoutTemplate className="w-3 h-3" /> {block.type}
         </div>
       )}
-      <EditableBlockContent 
-        block={block} 
-        isSelected={isSelected} 
-        selectedBlockId={selectedBlockId} 
-        onSelect={onSelect} 
-        themeMode={themeMode} 
-        onUpdateContent={onUpdateContent} 
+      <EditableBlockContent
+        block={block}
+        isSelected={isSelected}
+        selectedBlockId={selectedBlockId}
+        onSelect={onSelect}
+        themeMode={themeMode}
+        onUpdateContent={onUpdateContent}
       />
     </div>
   );
@@ -262,7 +281,7 @@ export function EmailDesigner() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [past, setPast] = useState<HistoryState[]>([]);
   const [future, setFuture] = useState<HistoryState[]>([]);
-  
+
   const [activeView, setActiveView] = useState<'preview' | 'code'>('preview');
   const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop');
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
@@ -342,12 +361,14 @@ export function EmailDesigner() {
       case 'Link': return { ...base, content: 'Click here', href: '#', style: { ...base.style, color: '#2563eb', textDecoration: 'underline' } };
       case 'Spacer': return { ...base, style: { height: '30px' } };
       case 'Button': return { ...base, content: 'Action Button', href: '#', style: { ...base.style, backgroundColor: '#000000', color: '#ffffff', padding: '12px 24px', borderRadius: '6px', display: 'inline-block', fontWeight: 'bold' } };
-      case 'Image': return { ...base, src: 'https://react.email/static/vercel-logo.png', style: { ...base.style, width: '100%', height: 'auto', display: 'block' } };
+      case 'Image': return { ...base, src: 'https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin" alt="FairArena Logo', style: { ...base.style, width: '100%', height: 'auto', display: 'block' } };
       case 'Divider': return { ...base, style: { borderColor: '#e5e7eb', borderTopWidth: '1px', borderTopStyle: 'solid', margin: '20px 0' } };
-    case 'Row': return { ...base, columns: [
-        { id: `${id}-c1`, width: 50, blocks: [] },
-        { id: `${id}-c2`, width: 50, blocks: [] }
-      ], style: { gap: '20px', padding: '20px 0' } };
+      case 'Row': return {
+        ...base, columns: [
+          { id: `${id}-c1`, width: 50, blocks: [] },
+          { id: `${id}-c2`, width: 50, blocks: [] }
+        ], style: { gap: '20px', padding: '20px 0' }
+      };
     }
     return base;
   };
@@ -441,18 +462,18 @@ export function EmailDesigner() {
   <body>
     <div class="container">
       ${blocks.map(b => {
-        const style = { ...b.style };
-        const styleString = Object.entries(style).map(([k, v]) => `${k.replace(/[A-Z]/g, m => "-" + m.toLowerCase())}:${v}`).join(';');
-        
-        if (b.type === 'Heading') return `<h1 style="${styleString}">${b.content}</h1>`;
-        if (b.type === 'Text') return `<p style="${styleString}">${b.content}</p>`;
-        if (b.type === 'Image') return `<img src="${b.src}" alt="${b.alt}" style="${styleString}" />`;
-        if (b.type === 'Button') return `<div style="text-align:${(b.style as any).textAlign || 'left'}"><a href="${b.href}" style="display:inline-block;text-decoration:none;${styleString}">${b.content}</a></div>`;
-        if (b.type === 'Link') return `<a href="${b.href}" style="${styleString}">${b.content}</a>`;
-        if (b.type === 'Divider') return `<hr style="${styleString}" />`;
-        if (b.type === 'Spacer') return `<div style="height:${b.style?.height || '20px'}"></div>`;
-        return '';
-      }).join('')}
+      const style = { ...b.style };
+      const styleString = Object.entries(style).map(([k, v]) => `${k.replace(/[A-Z]/g, m => "-" + m.toLowerCase())}:${v}`).join(';');
+
+      if (b.type === 'Heading') return `<h1 style="${styleString}">${b.content}</h1>`;
+      if (b.type === 'Text') return `<p style="${styleString}">${b.content}</p>`;
+      if (b.type === 'Image') return `<img src="${b.src}" alt="${b.alt}" style="${styleString}" />`;
+      if (b.type === 'Button') return `<div style="text-align:${(b.style as any).textAlign || 'left'}"><a href="${b.href}" style="display:inline-block;text-decoration:none;${styleString}">${b.content}</a></div>`;
+      if (b.type === 'Link') return `<a href="${b.href}" style="${styleString}">${b.content}</a>`;
+      if (b.type === 'Divider') return `<hr style="${styleString}" />`;
+      if (b.type === 'Spacer') return `<div style="height:${b.style?.height || '20px'}"></div>`;
+      return '';
+    }).join('')}
     </div>
   </body>
 </html>`;
@@ -462,17 +483,17 @@ export function EmailDesigner() {
     const renderBlockJSX = (b: Block, indent = 8) => {
       const space = ' '.repeat(indent);
       const styleObj = JSON.stringify(b.style).replace(/"([^"]+)":/g, '$1:');
-      
+
       const tag = b.type === 'Heading' ? 'Heading' : b.type === 'Text' ? 'Text' : b.type === 'Image' ? 'Img' : b.type === 'Button' ? 'Button' : b.type === 'Link' ? 'Link' : b.type === 'Divider' ? 'Hr' : 'Section';
       const props = b.type === 'Image' ? `src="${b.src}" alt="${b.alt}" ` : (b.type === 'Button' || b.type === 'Link') ? `href="${b.href}" ` : b.type === 'Spacer' ? `style={{ height: '${b.style?.height || '20px'}' }} ` : '';
       const content = b.content ? `\n${space}  ${b.content}\n${space}` : '';
-      
+
       return `${space}<${tag} ${props}style={${styleObj}}>${content}</${tag}>`;
     };
 
     return `import React from 'react';
-import { 
-  Html, Head, Body, Container, Section, Text, Heading, Button, Img, Hr, Link 
+import {
+  Html, Head, Body, Container, Section, Text, Heading, Button, Img, Hr, Link
 } from '@react-email/components';
 
 export default function Email() {
@@ -480,12 +501,12 @@ export default function Email() {
     <Html>
       <Head />
       <Body style={{ backgroundColor: '${settings.bodyBg}', fontFamily: '${settings.fontFamily}' }}>
-        <Container style={{ 
-          maxWidth: '${settings.maxWidth}', 
-          margin: '0 auto', 
-          backgroundColor: '${settings.containerBg}', 
-          padding: '${settings.padding}', 
-          borderRadius: '${settings.borderRadius}' 
+        <Container style={{
+          maxWidth: '${settings.maxWidth}',
+          margin: '0 auto',
+          backgroundColor: '${settings.containerBg}',
+          padding: '${settings.padding}',
+          borderRadius: '${settings.borderRadius}'
         }}>
           <Section style={{ padding: '0 20px' }}>
 ${blocks.map(b => renderBlockJSX(b)).join('\n')}
@@ -498,10 +519,10 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
 `;
   };
 
-  const previewCode = codeLanguage === 'HTML' 
-    ? generateHTMLCode(blocks, emailSettings) 
-    : codeLanguage === 'React' 
-      ? generateJSXCode(blocks, emailSettings) 
+  const previewCode = codeLanguage === 'HTML'
+    ? generateHTMLCode(blocks, emailSettings)
+    : codeLanguage === 'React'
+      ? generateJSXCode(blocks, emailSettings)
       : JSON.stringify({ settings: emailSettings, blocks }, null, 2);
 
   const previewHtml = generateHTMLCode(blocks, emailSettings);
@@ -589,7 +610,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
       const newTab: CanvasTab = {
         id: Math.random().toString(36).substr(2, 9),
         name: template.name,
-        blocks: template.blocks,
+        blocks: template.blocks as Block[],
         settings: template.settings,
         createdAt: Date.now(),
         updatedAt: Date.now()
@@ -598,7 +619,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
       setActiveTabId(newTab.id);
     } else {
       pushStateToHistory();
-      setBlocks(template.blocks);
+      setBlocks(template.blocks as Block[]);
       setEmailSettings(template.settings);
     }
     setShowTemplates(false);
@@ -622,10 +643,10 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
 
   const { setNodeRef: setCanvasRef, isOver: isCanvasOver } = useDroppable({ id: 'canvas-droppable' });
 
-  const renderStyleInput = (label: string, property: keyof React.CSSProperties, placeholder = '', type = "text", obj: any = selectedBlock?.style, onChange: any = updateSelectedBlockStyle) => (
+  const renderStyleInput = (label: string, property: string, placeholder = '', type = "text", obj: any = selectedBlock?.style, onChange: any = updateSelectedBlockStyle, isRoot = false) => (
     <div className="flex flex-col gap-1.5">
       <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-tight">{label}</label>
-      <input 
+      <input
         type={type}
         value={(obj?.[property] as string) || ''}
         onChange={(e) => onChange({ [property]: e.target.value })}
@@ -650,18 +671,18 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-[calc(100vh-80px)] w-full bg-neutral-950 overflow-hidden">
-        
+
         {/* Tab Bar */}
         <div className="flex items-center bg-neutral-900 border-b border-neutral-800 px-2 overflow-x-auto no-scrollbar">
           {tabs.map(t => (
-            <div 
+            <div
               key={t.id}
               onClick={() => setActiveTabId(t.id)}
               className={`flex items-center gap-3 px-4 py-2.5 text-xs font-semibold cursor-pointer border-r border-neutral-800 transition-all relative min-w-[140px] max-w-[200px] group
                 ${activeTabId === t.id ? 'bg-neutral-950 text-brand-400' : 'text-neutral-500 hover:bg-neutral-800/50 hover:text-neutral-300'}`}
             >
               <FileText className={`w-3.5 h-3.5 ${activeTabId === t.id ? 'text-brand-500' : 'text-neutral-600'}`} />
-              <input 
+              <input
                 value={t.name}
                 onChange={(e) => setTabs(prev => prev.map(tab => tab.id === t.id ? { ...tab, name: e.target.value } : tab))}
                 className="bg-transparent border-none outline-none w-24 truncate focus:ring-0 p-0"
@@ -754,10 +775,10 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
           <div className="flex-1 flex flex-col bg-neutral-950 overflow-hidden relative">
             {activeView === 'preview' ? (
               <div className="flex-1 overflow-y-auto no-scrollbar p-10 flex justify-center transition-colors duration-700" style={{ backgroundColor: themeMode === 'dark' ? '#020617' : emailSettings.bodyBg }}>
-                <div 
+                <div
                   ref={setCanvasRef}
                   className={`h-fit min-h-[600px] transition-all duration-500 shadow-[0_20px_50px_rgba(0,0,0,0.3)] bg-white border-2 rounded-lg ${isCanvasOver && blocks.length === 0 ? 'border-brand-500 scale-[1.02]' : 'border-transparent'}`}
-                  style={{ 
+                  style={{
                     width: deviceMode === 'mobile' ? '320px' : '100%',
                     maxWidth: emailSettings.maxWidth,
                     backgroundColor: themeMode === 'dark' ? '#0f172a' : emailSettings.containerBg,
@@ -768,15 +789,14 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
                   <div style={{ padding: `0 ${emailSettings.padding}` }}>
                     <SortableContext items={blocks.map(b => `canvas-${b.id}`)} strategy={verticalListSortingStrategy}>
                       {blocks.map(b => (
-                        <SortableCanvasItem 
-                          key={b.id} 
-                          block={b} 
-                          isSelected={selectedBlockId === b.id} 
-                          selectedBlockId={selectedBlockId} 
-                          onSelect={setSelectedBlockId} 
-                          themeMode={themeMode} 
-                          onUpdateContent={updateBlockContent} 
-                          onDelete={removeBlock} 
+                        <SortableCanvasItem
+                          key={b.id}
+                          block={b}
+                          isSelected={selectedBlockId === b.id}
+                          selectedBlockId={selectedBlockId}
+                          onSelect={setSelectedBlockId}
+                          themeMode={themeMode}
+                          onUpdateContent={updateBlockContent}
                         />
                       ))}
                     </SortableContext>
@@ -822,10 +842,10 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
                   <SyntaxHighlighter
                     language={codeLanguage === 'React' ? 'jsx' : codeLanguage.toLowerCase()}
                     style={syntaxTheme}
-                    customStyle={{ 
-                      margin: 0, 
-                      padding: 0, 
-                      background: 'transparent', 
+                    customStyle={{
+                      margin: 0,
+                      padding: 0,
+                      background: 'transparent',
                       fontSize: '11px',
                       lineHeight: '1.6',
                       fontFamily: '"JetBrains Mono", "Fira Code", monospace'
@@ -871,11 +891,11 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
                         <textarea value={selectedBlock.content} onChange={(e) => updateBlockContent(selectedBlock.id, e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-brand-500 min-h-[80px]" />
                       </div>
                     )}
-                    {(selectedBlock.type === 'Button' || selectedBlock.type === 'Link') && renderStyleInput('URL / Link', 'href', 'https://...', 'text', selectedBlock, (u: any) => setBlocks(prev => prev.map(b => b.id === selectedBlock.id ? { ...b, ...u } : b)))}
+                    {(selectedBlock.type === 'Button' || selectedBlock.type === 'Link') && renderStyleInput('URL / Link', 'href', 'https://...', 'text', selectedBlock, (u: any) => setBlocks(prev => prev.map(b => b.id === selectedBlock.id ? { ...b, ...u } : b)), true)}
                     {selectedBlock.type === 'Image' && (
                       <>
-                        {renderStyleInput('Source URL', 'src', 'https://...', 'text', selectedBlock, (u: any) => setBlocks(prev => prev.map(b => b.id === selectedBlock.id ? { ...b, ...u } : b)))}
-                        {renderStyleInput('Alt Text', 'alt', 'Image description', 'text', selectedBlock, (u: any) => setBlocks(prev => prev.map(b => b.id === selectedBlock.id ? { ...b, ...u } : b)))}
+                        {renderStyleInput('Source URL', 'src', 'https://...', 'text', selectedBlock, (u: any) => setBlocks(prev => prev.map(b => b.id === selectedBlock.id ? { ...b, ...u } : b)), true)}
+                        {renderStyleInput('Alt Text', 'alt', 'Image description', 'text', selectedBlock, (u: any) => setBlocks(prev => prev.map(b => b.id === selectedBlock.id ? { ...b, ...u } : b)), true)}
                       </>
                     )}
                   </div>
@@ -883,7 +903,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
                   {/* Styles */}
                   <div className="flex flex-col gap-4">
                     <h5 className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest border-b border-neutral-800 pb-2">Appearance</h5>
-                    
+
                     {/* Text-based blocks */}
                     {(selectedBlock.type === 'Heading' || selectedBlock.type === 'Text' || selectedBlock.type === 'Button' || selectedBlock.type === 'Link') && (
                       <>
@@ -902,7 +922,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
 
                     {/* Block Backgrounds */}
                     {(selectedBlock.type === 'Button' || selectedBlock.type === 'Row') && (
-                       renderColorInput('Background', 'backgroundColor', selectedBlock.style, updateSelectedBlockStyle)
+                      renderColorInput('Background', 'backgroundColor', selectedBlock.style, updateSelectedBlockStyle)
                     )}
 
                     {/* Sizing & Borders */}
@@ -912,9 +932,9 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
                         {renderStyleInput('Height', 'height', 'auto')}
                       </div>
                     )}
-                    
+
                     {(selectedBlock.type === 'Image' || selectedBlock.type === 'Button' || selectedBlock.type === 'Row') && (
-                       renderStyleInput('Border Radius', 'borderRadius', '0px')
+                      renderStyleInput('Border Radius', 'borderRadius', '0px')
                     )}
 
                     {selectedBlock.type === 'Divider' && (
@@ -926,82 +946,82 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
                     )}
 
                     {selectedBlock.type === 'Spacer' && (
-                       renderStyleInput('Height', 'height', '20px')
+                      renderStyleInput('Height', 'height', '20px')
                     )}
-                    
+
                     {selectedBlock.type === 'Row' && (
-                       <div className="flex flex-col gap-4">
-                         <div className="grid grid-cols-2 gap-4">
-                           {renderStyleInput('Gap', 'gap', '20px')}
-                           {renderStyleInput('Layout', 'tableLayout', 'fixed')}
-                         </div>
-                         <h5 className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest border-b border-neutral-800 pb-2 mt-4">Column Configuration</h5>
-                         {selectedBlock.columns?.map((col, i) => (
-                           <div key={col.id} className="p-3 bg-neutral-950 border border-neutral-800 rounded-lg flex flex-col gap-3">
-                             <div className="flex justify-between items-center">
-                               <div className="flex flex-col gap-1">
-                                 <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Column {i + 1}</span>
-                                 <div className="flex items-center gap-2">
-                                   <span className="text-[9px] text-neutral-600 font-bold uppercase">Width</span>
-                                   <input 
-                                     type="number" 
-                                     value={col.width} 
-                                     onChange={(e) => {
-                                       const val = parseInt(e.target.value);
-                                       setBlocks(prev => updateBlockDeep(prev, selectedBlock.id, b => ({
-                                         ...b,
-                                         columns: b.columns?.map(c => c.id === col.id ? { ...c, width: val } : c)
-                                       })));
-                                     }}
-                                     className="w-12 bg-neutral-900 border border-neutral-800 rounded px-1.5 py-0.5 text-[10px] text-brand-400 font-bold focus:outline-none focus:border-brand-500"
-                                   />
-                                   <span className="text-[9px] text-neutral-600 font-bold">%</span>
-                                 </div>
-                               </div>
-                               <div className="relative group">
-                                 <button className="text-[10px] bg-neutral-800 hover:bg-neutral-700 text-white px-2 py-1 rounded transition-colors flex items-center gap-1 font-bold">
-                                   + Add <ChevronRight className="w-3 h-3 group-hover:rotate-90 transition-transform" />
-                                 </button>
-                                 <div className="absolute right-0 top-full mt-1 w-32 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col p-1">
-                                   {['Text', 'Heading', 'Image', 'Button', 'Link', 'Divider', 'Spacer'].map(type => (
-                                     <button 
-                                       key={type}
-                                       onClick={() => addElementToColumn(selectedBlock.id, col.id, type as BlockType)}
-                                       className="text-left px-3 py-1.5 text-xs text-white hover:bg-brand-500 hover:text-brand-950 rounded transition-colors font-medium"
-                                     >
-                                       {type}
-                                     </button>
-                                   ))}
-                                 </div>
-                               </div>
-                             </div>
-                             
-                             <div className="flex flex-col gap-1.5 mt-1 border-t border-neutral-800 pt-2">
-                               <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest mb-1">Nested Elements</span>
-                               {col.blocks.length === 0 && (
-                                 <div className="text-[10px] text-neutral-600 italic px-2 py-1">No elements</div>
-                               )}
-                               {col.blocks.map(b => (
-                                 <div 
-                                   key={b.id} 
-                                   onClick={(e) => { e.stopPropagation(); setSelectedBlockId(b.id); }}
-                                   className={`flex justify-between items-center px-2 py-1.5 rounded transition-colors cursor-pointer ${selectedBlockId === b.id ? 'bg-brand-500/20 text-brand-400' : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300'}`}
-                                 >
-                                   <span className="text-[10px] font-medium flex items-center gap-2">
-                                     <LayoutTemplate className="w-3 h-3 opacity-50" /> {b.type}
-                                   </span>
-                                   <button 
-                                     onClick={(e) => { e.stopPropagation(); removeElementFromColumn(selectedBlock.id, col.id, b.id); }} 
-                                     className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded"
-                                   >
-                                     <Trash2 className="w-3 h-3" />
-                                   </button>
-                                 </div>
-                               ))}
-                             </div>
-                           </div>
-                         ))}
-                       </div>
+                      <div className="flex flex-col gap-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {renderStyleInput('Gap', 'gap', '20px')}
+                          {renderStyleInput('Layout', 'tableLayout', 'fixed')}
+                        </div>
+                        <h5 className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest border-b border-neutral-800 pb-2 mt-4">Column Configuration</h5>
+                        {selectedBlock.columns?.map((col, i) => (
+                          <div key={col.id} className="p-3 bg-neutral-950 border border-neutral-800 rounded-lg flex flex-col gap-3">
+                            <div className="flex justify-between items-center">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Column {i + 1}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] text-neutral-600 font-bold uppercase">Width</span>
+                                  <input
+                                    type="number"
+                                    value={col.width}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value);
+                                      setBlocks(prev => updateBlockDeep(prev, selectedBlock.id, b => ({
+                                        ...b,
+                                        columns: b.columns?.map(c => c.id === col.id ? { ...c, width: val } : c)
+                                      })));
+                                    }}
+                                    className="w-12 bg-neutral-900 border border-neutral-800 rounded px-1.5 py-0.5 text-[10px] text-brand-400 font-bold focus:outline-none focus:border-brand-500"
+                                  />
+                                  <span className="text-[9px] text-neutral-600 font-bold">%</span>
+                                </div>
+                              </div>
+                              <div className="relative group">
+                                <button className="text-[10px] bg-neutral-800 hover:bg-neutral-700 text-white px-2 py-1 rounded transition-colors flex items-center gap-1 font-bold">
+                                  + Add <ChevronRight className="w-3 h-3 group-hover:rotate-90 transition-transform" />
+                                </button>
+                                <div className="absolute right-0 top-full mt-1 w-32 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 flex flex-col p-1">
+                                  {['Text', 'Heading', 'Image', 'Button', 'Link', 'Divider', 'Spacer'].map(type => (
+                                    <button
+                                      key={type}
+                                      onClick={() => addElementToColumn(selectedBlock.id, col.id, type as BlockType)}
+                                      className="text-left px-3 py-1.5 text-xs text-white hover:bg-brand-500 hover:text-brand-950 rounded transition-colors font-medium"
+                                    >
+                                      {type}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5 mt-1 border-t border-neutral-800 pt-2">
+                              <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest mb-1">Nested Elements</span>
+                              {col.blocks.length === 0 && (
+                                <div className="text-[10px] text-neutral-600 italic px-2 py-1">No elements</div>
+                              )}
+                              {col.blocks.map(b => (
+                                <div
+                                  key={b.id}
+                                  onClick={(e) => { e.stopPropagation(); setSelectedBlockId(b.id); }}
+                                  className={`flex justify-between items-center px-2 py-1.5 rounded transition-colors cursor-pointer ${selectedBlockId === b.id ? 'bg-brand-500/20 text-brand-400' : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300'}`}
+                                >
+                                  <span className="text-[10px] font-medium flex items-center gap-2">
+                                    <LayoutTemplate className="w-3 h-3 opacity-50" /> {b.type}
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); removeElementFromColumn(selectedBlock.id, col.id, b.id); }}
+                                    className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
 
@@ -1038,7 +1058,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
         </div>
 
         {/* Drag Overlay */}
-        <DragOverlay dropAnimation={defaultDropAnimationSideEffects({ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) })}>
+        <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
           {activeDragId && activeDragData?.isSidebarItem && (
             <div className="flex items-center gap-2 p-4 rounded-xl border border-brand-500 bg-neutral-900 shadow-2xl text-white opacity-90 scale-105 ring-4 ring-brand-500/10">
               {getSidebarIcon(activeDragData.type)}
@@ -1047,7 +1067,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
           )}
           {activeDragId && activeDragData?.isCanvasItem && (
             <div className="bg-brand-500/10 border-2 border-brand-500/50 rounded shadow-2xl p-4 opacity-80 backdrop-blur-md">
-               <span className="text-xs font-bold text-brand-400 bg-neutral-950 px-3 py-1.5 rounded uppercase tracking-tighter">Moving {activeDragData.block.type}</span>
+              <span className="text-xs font-bold text-brand-400 bg-neutral-950 px-3 py-1.5 rounded uppercase tracking-tighter">Moving {activeDragData.block.type}</span>
             </div>
           )}
         </DragOverlay>
@@ -1063,38 +1083,38 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10 overflow-y-auto p-2 md:p-6 custom-scrollbar flex-1 min-h-0 pb-40">
                 {EMAIL_TEMPLATES.map((t, i) => (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     className="group relative bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden hover:border-brand-500 transition-all shadow-2xl flex flex-col min-h-[400px] md:min-h-[450px]"
                   >
                     <div className="flex-1 bg-neutral-950 overflow-hidden relative w-full border-b border-neutral-800">
-                       {/* Preview Mini Render - Simulated */}
-                       <div className="origin-top scale-[0.35] sm:scale-[0.4] w-[280%] sm:w-[250%] opacity-40 group-hover:opacity-100 transition-all duration-700 absolute top-6 left-1/2 -translate-x-1/2">
-                         <div style={{ backgroundColor: t.settings.bodyBg, padding: '20px', minHeight: '1000px' }}>
-                           <div style={{ backgroundColor: t.settings.containerBg, padding: '20px', borderRadius: t.settings.borderRadius, margin: '0 auto', maxWidth: t.settings.maxWidth }}>
-                             {t.blocks.map(b => (
-                               <div key={b.id} style={{ ...b.style, marginBottom: '10px' }}>{b.content || b.type}</div>
-                             ))}
-                           </div>
-                         </div>
-                       </div>
-                       <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-transparent opacity-60" />
-                       
-                       {/* Action Buttons overlay */}
-                       <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 gap-4 bg-black/60 backdrop-blur-[2px] z-10 translate-y-4 group-hover:translate-y-0">
-                         <button 
-                           onClick={(e) => { e.stopPropagation(); importTemplate(t, false); }}
-                           className="w-[80%] px-4 py-3 bg-brand-500 hover:bg-white text-brand-950 font-bold rounded-xl shadow-2xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95"
-                         >
-                           <LayoutTemplate className="w-4 h-4" /> Use Template
-                         </button>
-                         <button 
-                           onClick={(e) => { e.stopPropagation(); importTemplate(t, true); }}
-                           className="w-[80%] px-4 py-3 bg-neutral-800/80 hover:bg-neutral-700 text-white font-bold rounded-xl shadow-2xl flex items-center justify-center gap-2 border border-neutral-700 backdrop-blur-md transition-all transform hover:scale-[1.02] active:scale-95"
-                         >
-                           <Plus className="w-4 h-4" /> Open New Tab
-                         </button>
-                       </div>
+                      {/* Preview Mini Render - Simulated */}
+                      <div className="origin-top scale-[0.35] sm:scale-[0.4] w-[280%] sm:w-[250%] opacity-40 group-hover:opacity-100 transition-all duration-700 absolute top-6 left-1/2 -translate-x-1/2">
+                        <div style={{ backgroundColor: t.settings.bodyBg, padding: '20px', minHeight: '1000px' }}>
+                          <div style={{ backgroundColor: t.settings.containerBg, padding: '20px', borderRadius: t.settings.borderRadius, margin: '0 auto', maxWidth: t.settings.maxWidth }}>
+                            {t.blocks.map(b => (
+                              <div key={b.id} style={{ ...b.style, marginBottom: '10px' }}>{b.content || b.type}</div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-transparent opacity-60" />
+
+                      {/* Action Buttons overlay */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 gap-4 bg-black/60 backdrop-blur-[2px] z-10 translate-y-4 group-hover:translate-y-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); importTemplate(t, false); }}
+                          className="w-[80%] px-4 py-3 bg-brand-500 hover:bg-white text-brand-950 font-bold rounded-xl shadow-2xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95"
+                        >
+                          <LayoutTemplate className="w-4 h-4" /> Use Template
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); importTemplate(t, true); }}
+                          className="w-[80%] px-4 py-3 bg-neutral-800/80 hover:bg-neutral-700 text-white font-bold rounded-xl shadow-2xl flex items-center justify-center gap-2 border border-neutral-700 backdrop-blur-md transition-all transform hover:scale-[1.02] active:scale-95"
+                        >
+                          <Plus className="w-4 h-4" /> Open New Tab
+                        </button>
+                      </div>
                     </div>
                     <div className="p-5 bg-neutral-900 flex justify-between items-center shrink-0 z-20">
                       <div className="flex flex-col gap-0.5">
@@ -1141,7 +1161,7 @@ ${blocks.map(b => renderBlockJSX(b)).join('\n')}
               <button onClick={() => setShowFullScreen(false)} className="p-2 bg-neutral-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-all"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-20 flex justify-center bg-neutral-950 no-scrollbar">
-              <div 
+              <div
                 className="shadow-2xl h-fit border border-neutral-800 rounded-xl overflow-hidden transition-all duration-700"
                 style={{ width: deviceMode === 'mobile' ? '320px' : '100%', maxWidth: emailSettings.maxWidth, backgroundColor: emailSettings.bodyBg }}
               >
