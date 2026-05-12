@@ -48,7 +48,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   };
 
   handleReload = () => {
-    window.location.href = '/';
+    window.location.reload();
   };
 
   render(): ReactElement {

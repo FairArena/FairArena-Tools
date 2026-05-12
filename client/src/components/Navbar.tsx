@@ -26,7 +26,8 @@ type TabId =
   | 'guide'
   | 'clipsync'
   | 'rate-limit'
-  | 'url-shortener';
+  | 'url-shortener'
+  | 'email-designer';
 
 interface NavbarProps {
   activeTab: TabId;
@@ -49,6 +50,7 @@ const NAV_TABS: {
   { id: 'clipsync', label: 'ClipSync', icon: Link2 },
   { id: 'tempmail', label: 'TempMail', icon: Mail },
   { id: 'guide', label: 'Guide', icon: BookOpen },
+  { id: 'email-designer', label: 'Email Designer', icon: Mail },
 ];
 
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
@@ -85,10 +87,10 @@ export function Navbar({ activeTab, onTabChange }: NavbarProps) {
   return (
     <>
       {/* ================= DESKTOP NAV (UNCHANGED) ================= */}
-      <header className="sticky flex top-5 z-50 hidden lg:flex">
-        <div className="max-w-screen-2xl rounded-full border-2 border-neutral-800 px-10 py-2 bg-neutral-900 h-auto mx-auto flex gap-10">
+      <header className="sticky flex top-5 z-50 hidden lg:flex w-full justify-center px-4">
+        <div className="w-[95%] max-w-screen-2xl rounded-full border-2 border-neutral-800 px-6 py-2 bg-neutral-900 h-auto mx-auto flex gap-6 items-center">
           {/* Logo */}
-          <div className=" flex h-[50px] items-center shrink-0">
+          <div className=" flex h-[40px] items-center shrink-0">
             <img
               src="https://fra.cloud.appwrite.io/v1/storage/buckets/697b974d001a7a80496e/files/697b9764002453409e98/view?project=69735edc00127d2033d8&mode=admin"
               alt="logo"

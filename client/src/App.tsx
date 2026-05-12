@@ -40,6 +40,8 @@ import { Analytics } from '@vercel/analytics/react';
 import { Spotlight } from './components/ui/spotlight-new.js';
 import Footer from './components/Footer.js';
 
+const EmailDesigner = React.lazy(() => import('./components/EmailDesigner').then(m => ({ default: m.EmailDesigner })));
+
 type Tab =
   | 'terminal'
   | 'api'
@@ -51,7 +53,8 @@ type Tab =
   | 'clipsync'
   | 'tempmail'
   | 'rate-limit'
-  | 'url-shortener';
+  | 'url-shortener'
+  | 'email-designer';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-24 text-neutral-500">
@@ -298,6 +301,16 @@ export default function App() {
                 <UrlShortener />
               ) : tab === 'rate-limit' ? (
                 <RateLimitTester />
+              ) : tab === 'email-designer' ? (
+                <React.Suspense
+                  fallback={
+                    <div className="flex items-center justify-center h-64">
+                      <Spinner />
+                    </div>
+                  }
+                >
+                  <EmailDesigner />
+                </React.Suspense>
               ) : (
                 <NotFound />
               )}
