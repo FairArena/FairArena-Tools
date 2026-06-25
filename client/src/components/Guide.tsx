@@ -191,7 +191,7 @@ export function Guide() {
               <h3 className="font-medium text-white mb-3">Networking Commands</h3>
               <div className="space-y-2 text-sm">
                 <code className="block bg-neutral-900 px-2 py-1 rounded text-brand-500">
-                  curl https://httpbin.org/get
+                  curl https://httpbin-tools.fairarena.app/get
                 </code>
                 <code className="block bg-neutral-900 px-2 py-1 rounded text-brand-500">
                   ping -c 3 google.com
@@ -317,14 +317,14 @@ export function Guide() {
                 <div className="bg-neutral-900/50 rounded-lg p-4">
                   <div className="font-medium text-white mb-2">Send JSON Data</div>
                   <div className="text-sm text-neutral-400 mb-2">
-                    POST https://httpbin.tools.fairarena.app/post with body: {'{ "name": "test" }'}
+                    POST https://httpbin-tools.fairarena.app/post with body: {'{ "name": "test" }'}
                   </div>
                   <div className="text-xs text-neutral-500">Echoes back your request data</div>
                 </div>
                 <div className="bg-neutral-900/50 rounded-lg p-4">
                   <div className="font-medium text-white mb-2">Test Authentication</div>
                   <div className="text-sm text-neutral-400 mb-2">
-                    GET https://httpbin.org/basic-auth/user/pass
+                    GET https://httpbin-tools.fairarena.app/basic-auth/user/pass
                   </div>
                   <div className="text-xs text-neutral-500">Requires Basic auth with user:pass</div>
                 </div>
@@ -538,7 +538,9 @@ export function Guide() {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="bg-neutral-900/50 rounded-lg p-4 border border-neutral-800/50">
                 <h3 className="font-medium text-white mb-2">JWT Decoder</h3>
-                <p className="text-sm text-neutral-400 mb-3">Decode and analyze JSON Web Tokens instantly</p>
+                <p className="text-sm text-neutral-400 mb-3">
+                  Decode and analyze JSON Web Tokens instantly
+                </p>
                 <ul className="text-xs text-neutral-500 space-y-1">
                   <li>• Decode JWT structure</li>
                   <li>• View claims and payload</li>
@@ -548,7 +550,9 @@ export function Guide() {
 
               <div className="bg-neutral-900/50 rounded-lg p-4 border border-neutral-800/50">
                 <h3 className="font-medium text-white mb-2">JSON Formatter</h3>
-                <p className="text-sm text-neutral-400 mb-3">Format, validate, and beautify JSON code</p>
+                <p className="text-sm text-neutral-400 mb-3">
+                  Format, validate, and beautify JSON code
+                </p>
                 <ul className="text-xs text-neutral-500 space-y-1">
                   <li>• Auto-format JSON</li>
                   <li>• Syntax highlighting</li>
@@ -558,7 +562,9 @@ export function Guide() {
 
               <div className="bg-neutral-900/50 rounded-lg p-4 border border-neutral-800/50">
                 <h3 className="font-medium text-white mb-2">Hash Generator</h3>
-                <p className="text-sm text-neutral-400 mb-3">Generate cryptographic hashes (MD5, SHA, etc.)</p>
+                <p className="text-sm text-neutral-400 mb-3">
+                  Generate cryptographic hashes (MD5, SHA, etc.)
+                </p>
                 <ul className="text-xs text-neutral-500 space-y-1">
                   <li>• Multiple hash algorithms</li>
                   <li>• One-way encryption</li>
@@ -608,7 +614,9 @@ export function Guide() {
 
               <div className="bg-neutral-900/50 rounded-lg p-4 border border-neutral-800/50">
                 <h3 className="font-medium text-white mb-2">Email Security Checker</h3>
-                <p className="text-sm text-neutral-400 mb-3">Verify email configurations and security</p>
+                <p className="text-sm text-neutral-400 mb-3">
+                  Verify email configurations and security
+                </p>
                 <ul className="text-xs text-neutral-500 space-y-1">
                   <li>• SPF/DKIM/DMARC checks</li>
                   <li>• DNS validation</li>
@@ -630,8 +638,9 @@ export function Guide() {
             <div>
               <h3 className="font-medium text-white mb-2">What It Is</h3>
               <p className="text-neutral-300">
-                Share text, files, images, audio, video, and location between your devices with end-to-end encryption. 
-                Perfect for syncing clipboard content, sharing large files, or coordinating between multiple screens.
+                Share text, files, images, audio, video, and location between your devices with
+                end-to-end encryption. Perfect for syncing clipboard content, sharing large files,
+                or coordinating between multiple screens.
               </p>
             </div>
 
@@ -692,8 +701,8 @@ export function Guide() {
             <div>
               <h3 className="text-lg font-medium text-white mb-3">SSE Listener</h3>
               <p className="text-sm text-neutral-400 mb-3">
-                Listen to Server-Sent Events in real-time. Perfect for testing streaming APIs, WebSocket alternatives, 
-                and live data feeds.
+                Listen to Server-Sent Events in real-time. Perfect for testing streaming APIs,
+                WebSocket alternatives, and live data feeds.
               </p>
               <ul className="text-sm text-neutral-500 space-y-1">
                 <li>• Connect to SSE endpoints</li>
@@ -706,8 +715,8 @@ export function Guide() {
             <div>
               <h3 className="text-lg font-medium text-white mb-3">Rate Limit Tester</h3>
               <p className="text-sm text-neutral-400 mb-3">
-                Test API rate limiting and throttling behavior. Learn how services respond to traffic spikes 
-                and concurrent requests.
+                Test API rate limiting and throttling behavior. Learn how services respond to
+                traffic spikes and concurrent requests.
               </p>
               <ul className="text-sm text-neutral-500 space-y-1">
                 <li>• Concurrent request testing</li>

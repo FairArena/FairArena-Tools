@@ -548,7 +548,8 @@ export function TerminalPane({ osImages }: TerminalPaneProps) {
       {/* Tips */}
       <div className="text-xs text-neutral-500 flex flex-wrap gap-x-6 gap-y-1">
         <span>
-          Try: <code className="text-neutral-400">curl https://httpbin.org/get</code>
+          Try:{' '}
+          <code className="text-neutral-400">curl https://httpbin-tools.fairarena.app/get</code>
         </span>
         <span>
           or: <code className="text-neutral-400">cat /etc/os-release</code>
