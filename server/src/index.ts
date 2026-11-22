@@ -15,6 +15,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
   Agent,
+  Headers as UndiciHeaders,
   fetch as undiciFetch,
   type RequestInit as UndiciRequestInit,
   type Response as UndiciResponse,
@@ -363,7 +364,7 @@ async function ssrfSafeFetch(
   let currentUrl = url;
   let method = (init.method ?? 'GET').toUpperCase();
   let body = init.body;
-  let headers = new Headers(init.headers as HeadersInit | undefined);
+  let headers = new UndiciHeaders(init.headers);
 
   for (let hop = 0; ; hop++) {
     const blocked = (msg?: string) => {
@@ -381,7 +382,7 @@ async function ssrfSafeFetch(
       response = await undiciFetch(currentUrl, {
         ...init,
         method,
-        headers: Object.fromEntries(headers),
+        headers,
         body,
         redirect: 'manual',
         dispatcher: opts.allowPrivate ? unguardedAgent : guardedAgent,
@@ -408,7 +409,7 @@ async function ssrfSafeFetch(
       for (const h of BODY_HEADERS) headers.delete(h);
     }
     if (next.origin !== target.origin) {
-      headers = new Headers(headers);
+      headers = new UndiciHeaders(headers);
       headers.delete('authorization');
       headers.delete('cookie');
     }
