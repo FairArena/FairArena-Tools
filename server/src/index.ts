@@ -912,7 +912,7 @@ app.post('/api/dns/propagation', dnsLimiter, async (req, res) => {
       }
     } catch {}
 
-    if (/^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/i.test(domain)) {
+    if (isPrivate(domain)) {
       return res.status(400).json({ error: 'Private or loopback hosts are not allowed.' });
     }
 
@@ -960,7 +960,7 @@ app.post('/api/dns/resolve', dnsLimiter, async (req, res) => {
     }
 
     // Basic domain validation: disallow private IPs or localhost
-    if (/^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/i.test(domain)) {
+    if (isPrivate(domain)) {
       return res.status(400).json({ error: 'Private or loopback hosts are not allowed.' });
     }
 
@@ -1202,8 +1202,7 @@ interface RateLimitTestResponse {
 const rateLimitTestLimiter = rateLimit({
   windowMs: 60_000,
   max: 5,
-  keyGenerator: (req) =>
-    (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown',
+  keyGenerator: (req) => clientIp(req),
   skip: (req) => process.env.BYPASS_LIMITS === 'true',
 });
 
@@ -1254,10 +1253,10 @@ app.post('/api/rate-limit/test', rateLimitTestLimiter, async (req, res: ExpressR
       try {
         const fetchOptions: UndiciRequestInit = {
           method,
-          headers: {
+          headers: sanitizeReqHeaders({
             'User-Agent': 'FairArena-RateLimitTester/1.0',
-            ...headers,
-          },
+            ...(headers as Record<string, string>),
+          }),
           signal: AbortSignal.timeout(30000), // 30 second timeout per request
         };
 
@@ -1291,6 +1290,7 @@ app.post('/api/rate-limit/test', rateLimitTestLimiter, async (req, res: ExpressR
           success: false,
           error: error instanceof Error ? error.message : String(error),
         });
+        if (error instanceof SsrfBlockedError) break;
       }
 
       // Wait before next request
