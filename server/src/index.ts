@@ -13,6 +13,12 @@ import bcryptjs from 'bcryptjs';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
+import {
+  Agent,
+  fetch as undiciFetch,
+  type RequestInit as UndiciRequestInit,
+  type Response as UndiciResponse,
+} from 'undici';
 import { v4 as uuidv4 } from 'uuid';
 import net, { AddressInfo } from 'node:net';
 import {
@@ -317,15 +323,33 @@ async function isSafeHost(hostname: string, allowPrivate: boolean): Promise<bool
   }
 }
 
-class UnsafeRedirectError extends Error {
-  constructor(message: string) {
+class SsrfBlockedError extends Error {
+  readonly code = 'ESSRFBLOCKED';
+  constructor(message = 'Requests to private or internal IP ranges are blocked.') {
     super(message);
-    this.name = 'UnsafeRedirectError';
+    this.name = 'SsrfBlockedError';
   }
 }
 
+// Re-validates the addresses actually used for the TCP connection, so a host
+// that resolves differently between isSafeHost() and connect (DNS rebinding)
+// cannot reach private ranges.
+const guardedLookup = ((hostname: string, options: dns.LookupOptions, callback: Function) => {
+  dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return callback(err);
+    const list = addresses as dns.LookupAddress[];
+    if (!list.length || list.some((a) => isPrivate(a.address))) return callback(new SsrfBlockedError());
+    if (options.all) return callback(null, list);
+    return callback(null, list[0].address, list[0].family);
+  });
+}) as unknown as net.LookupFunction;
+
+const guardedAgent = new Agent({ connect: { lookup: guardedLookup } });
+const unguardedAgent = new Agent();
+
 const MAX_REDIRECTS = 10;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const BODY_HEADERS = ['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location'];
 
 /**
  * fetch() wrapper that follows redirects manually so every hop is re-validated
@@ -333,40 +357,55 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
  */
 async function ssrfSafeFetch(
   url: string,
-  init: RequestInit,
+  init: UndiciRequestInit,
   opts: { allowPrivate: boolean; followRedirects: boolean },
-): Promise<{ response: Response; finalUrl: string; redirected: boolean }> {
+): Promise<{ response: UndiciResponse; finalUrl: string; redirected: boolean }> {
   let currentUrl = url;
   let method = (init.method ?? 'GET').toUpperCase();
   let body = init.body;
-  let headers = new Headers(init.headers);
+  let headers = new Headers(init.headers as HeadersInit | undefined);
 
   for (let hop = 0; ; hop++) {
+    const blocked = (msg?: string) => {
+      const e = new SsrfBlockedError(msg);
+      if (hop > 0) e.message = `Redirect blocked: ${e.message}`;
+      return e;
+    };
     const target = new URL(currentUrl);
     if (!['http:', 'https:'].includes(target.protocol))
-      throw new UnsafeRedirectError('Only http and https URLs are allowed.');
-    if (!(await isSafeHost(target.hostname, opts.allowPrivate)))
-      throw new UnsafeRedirectError('Requests to private or internal IP ranges are blocked.');
+      throw blocked('Only http and https URLs are allowed.');
+    if (!(await isSafeHost(target.hostname, opts.allowPrivate))) throw blocked();
 
-    const response = await fetch(currentUrl, { ...init, method, headers, body, redirect: 'manual' });
+    let response: UndiciResponse;
+    try {
+      response = await undiciFetch(currentUrl, {
+        ...init,
+        method,
+        headers: Object.fromEntries(headers),
+        body,
+        redirect: 'manual',
+        dispatcher: opts.allowPrivate ? unguardedAgent : guardedAgent,
+      });
+    } catch (err) {
+      if ((err as { cause?: unknown }).cause instanceof SsrfBlockedError) throw blocked();
+      throw err;
+    }
     const location = response.headers.get('location');
-    if (!opts.followRedirects || !REDIRECT_STATUSES.has(response.status) || !location)
+    if (!opts.followRedirects || !REDIRECT_STATUSES.has(response.status) || location === null)
       return { response, finalUrl: currentUrl, redirected: hop > 0 };
 
-    if (hop >= MAX_REDIRECTS) {
-      await response.body?.cancel().catch(() => {});
-      throw new UnsafeRedirectError(`Too many redirects (max ${MAX_REDIRECTS}).`);
-    }
     await response.body?.cancel().catch(() => {});
+    if (hop >= MAX_REDIRECTS) throw new Error(`Too many redirects (max ${MAX_REDIRECTS}).`);
 
     const next = new URL(location, currentUrl);
-    if (
-      response.status === 303 ? method !== 'HEAD' : [301, 302].includes(response.status) && method === 'POST'
-    ) {
+    const toGet =
+      response.status === 303
+        ? method !== 'GET' && method !== 'HEAD'
+        : [301, 302].includes(response.status) && method === 'POST';
+    if (toGet) {
       method = 'GET';
       body = undefined;
-      headers.delete('content-type');
-      headers.delete('content-length');
+      for (const h of BODY_HEADERS) headers.delete(h);
     }
     if (next.origin !== target.origin) {
       headers = new Headers(headers);
@@ -791,8 +830,7 @@ app.post('/api/request/run', curlLimiter, async (req, res) => {
       ));
     } catch (err) {
       clearTimeout(timer);
-      if (err instanceof UnsafeRedirectError)
-        return res.status(400).json({ error: `Redirect blocked: ${err.message}` });
+      if (err instanceof SsrfBlockedError) return res.status(400).json({ error: err.message });
       if ((err as Error).name === 'AbortError')
         return res.status(504).json({ error: `Request timed out after ${p.timeoutMs} ms.` });
       return res.status(502).json({ error: `Network error: ${(err as Error).message}` });
@@ -1213,7 +1251,7 @@ app.post('/api/rate-limit/test', rateLimitTestLimiter, async (req, res: ExpressR
       const startTime = performance.now();
 
       try {
-        const fetchOptions: RequestInit = {
+        const fetchOptions: UndiciRequestInit = {
           method,
           headers: {
             'User-Agent': 'FairArena-RateLimitTester/1.0',
